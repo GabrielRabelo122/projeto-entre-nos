@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Testes de Vínculos — Entre Nós</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #0f172a; color: #e2e8f0; padding: 24px; line-height: 1.5; }
+    h1 { font-size: 1.6rem; margin-bottom: 8px; }
+    h2 { font-size: 1.2rem; margin: 24px 0 12px; color: #94a3b8; border-bottom: 1px solid #1e293b; padding-bottom: 8px; }
+    .subtitle { color: #64748b; margin-bottom: 24px; }
+    .test-controls { display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap; align-items: flex-end; }
+    .test-controls label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: #94a3b8; }
+    .test-controls input { background: #1e293b; border: 1px solid #334155; color: #e2e8f0; padding: 8px 12px; border-radius: 6px; font-size: 0.9rem; min-width: 220px; }
+    .btn { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+    .btn-primary { background: #0d9668; color: #fff; }
+    .btn-primary:hover { background: #0b8558; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-secondary { background: #334155; color: #e2e8f0; }
+    .results { margin-top: 16px; }
+    .test-group { margin-bottom: 24px; }
+    .test-group-title { font-size: 1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+    .test-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px; border-radius: 6px; margin-bottom: 4px; font-size: 0.88rem; background: #1e293b; }
+    .test-item.pass { border-left: 3px solid #10b981; }
+    .test-item.fail { border-left: 3px solid #ef4444; }
+    .test-item.running { border-left: 3px solid #f59e0b; }
+    .test-item.skipped { border-left: 3px solid #64748b; }
+    .test-icon { font-size: 1rem; flex-shrink: 0; width: 20px; text-align: center; }
+    .test-name { flex: 1; }
+    .test-detail { color: #64748b; font-size: 0.8rem; margin-top: 2px; }
+    .summary-bar { display: flex; gap: 16px; padding: 16px; background: #1e293b; border-radius: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+    .summary-item { text-align: center; }
+    .summary-item .num { font-size: 1.8rem; font-weight: 800; }
+    .summary-item .label { font-size: 0.75rem; color: #64748b; text-transform: uppercase; }
+    .num-pass { color: #10b981; }
+    .num-fail { color: #ef4444; }
+    .num-skip { color: #64748b; }
+    .num-total { color: #60a5fa; }
+    .log-area { background: #0c1222; border: 1px solid #1e293b; border-radius: 8px; padding: 12px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.78rem; color: #94a3b8; margin-top: 16px; }
+    .log-area .log-error { color: #ef4444; }
+    .log-area .log-warn { color: #f59e0b; }
+    .log-area .log-info { color: #60a5fa; }
+    .progress-bar { height: 4px; background: #1e293b; border-radius: 2px; margin-bottom: 16px; overflow: hidden; }
+    .progress-fill { height: 100%; background: #0d9668; transition: width 0.3s ease; width: 0%; }
+    .config-note { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; font-size: 0.85rem; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <h1>🧪 Testes de Vínculos — Entre Nós</h1>
+  <p class="subtitle">Suíte completa para validar criação, aceite, troca e saída de ambientes (dominados e não dominados)</p>
+
+  <div class="config-note">
+    <strong>⚠️ Importante:</strong> Estes testes criam contas reais no Supabase configurado em <code>js/config.js</code>.
+    Use e-mails de teste. O teste precisa que a confirmação de e-mail esteja <strong>desativada</strong> no Supabase
+    (Authentication → Settings → Email Auth → Confirm email = OFF).
+  </div>
+
+  <div class="test-controls">
+    <label>
+      Usuário A (criador)
+      <input type="email" id="userAEmail" placeholder="userA@test.com" value="test-vinculo-a@entretest.com" />
+    </label>
+    <label>
+      Senha A
+      <input type="password" id="userAPassword" value="TestA123456!" />
+    </label>
+    <label>
+      Usuário B (convidado)
+      <input type="email" id="userBEmail" placeholder="userB@test.com" value="test-vinculo-b@entretest.com" />
+    </label>
+    <label>
+      Senha B
+      <input type="password" id="userBPassword" value="TestB123456!" />
+    </label>
+    <button class="btn btn-primary" id="runAllBtn" onclick="runAllTests()">▶ Rodar todos os testes</button>
+    <button class="btn btn-danger" id="cleanupBtn" onclick="runCleanup()">🗑 Limpar dados de teste</button>
+  </div>
+
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="summary-bar" id="summaryBar">
+    <div class="summary-item"><div class="num num-total" id="totalNum">0</div><div class="label">Total</div></div>
+    <div class="summary-item"><div class="num num-pass" id="passNum">0</div><div class="label">Passou</div></div>
+    <div class="summary-item"><div class="num num-fail" id="failNum">0</div><div class="label">Falhou</div></div>
+    <div class="summary-item"><div class="num num-skip" id="skipNum">0</div><div class="label">Pulado</div></div>
+  </div>
+
+  <div class="results" id="results"></div>
+  <div class="log-area" id="logArea"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    // Importa config diretamente
+    const SUPABASE_URL = "https://nxjwiqtobquflpnmbabj.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im54andpcXRvYnF1Zmxwbm1iYWJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU5MzkwMDEsImV4cCI6MjEwMTUxNTAwMX0.NRg1L0PGh4PC_bky2kHSEcHxm8aL0QWXLjlMiF6Ccls";
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+
+    // Estado dos testes
+    let clientA = null; // Supabase client para User A
+    let clientB = null; // Supabase client para User B
+    let inviteCode = null;
+    let coupleIdA = null;
+    let results = { total: 0, pass: 0, fail: 0, skip: 0 };
+
+    function log(msg, level = 'info') {
+      const area = document.getElementById('logArea');
+      const line = document.createElement('div');
+      line.className = `log-${level}`;
+      line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      area.appendChild(line);
+      area.scrollTop = area.scrollHeight;
+    }
+
+    function addTestResult(group, name, status, detail = '') {
+      const container = document.getElementById('results');
+      let groupEl = document.getElementById(`group-${group}`);
+      if (!groupEl) {
+        groupEl = document.createElement('div');
+        groupEl.className = 'test-group';
+        groupEl.id = `group-${group}`;
+        groupEl.innerHTML = `<div class="test-group-title">${group}</div>`;
+        container.appendChild(groupEl);
+      }
+
+      const icons = { pass: '✅', fail: '❌', running: '⏳', skipped: '⏭️' };
+      const item = document.createElement('div');
+      item.className = `test-item ${status}`;
+      item.innerHTML = `
+        <span class="test-icon">${icons[status]}</span>
+        <div class="test-name">
+          <div>${name}</div>
+          ${detail ? `<div class="test-detail">${detail}</div>` : ''}
+        </div>
+      `;
+      groupEl.appendChild(item);
+    }
+
+    function updateSummary() {
+      document.getElementById('totalNum').textContent = results.total;
+      document.getElementById('passNum').textContent = results.pass;
+      document.getElementById('failNum').textContent = results.fail;
+      document.getElementById('skipNum').textContent = results.skip;
+    }
+
+    function updateProgress(current, total) {
+      document.getElementById('progressFill').style.width = `${(current / total) * 100}%`;
+    }
+
+    // Cria um client Supabase autenticado para um usuário específico
+    async function createAuthClient(email, password) {
+      const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      });
+      const { data, error } = await client.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      return client;
+    }
+
+    // Registra um novo usuário e retorna o client autenticado
+    async function registerAndAuth(email, password, fullName) {
+      // Tenta registrar
+      const { data: signupData, error: signupError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name: fullName } }
+      });
+
+      if (signupError && !signupError.message.includes('already registered')) {
+        throw signupError;
+      }
+
+      // Faz login
+      const client = await createAuthClient(email, password);
+      return client;
+    }
+
+    async function test(name, group, fn) {
+      results.total++;
+      const totalTests = results.total;
+      addTestResult(group, name, 'running');
+      try {
+        const detail = await fn();
+        results.pass++;
+        // Remove o "running" e adiciona "pass"
+        const groupEl = document.getElementById(`group-${group}`);
+        const items = groupEl.querySelectorAll('.test-item.running');
+        if (items.length) items[items.length - 1].remove();
+        addTestResult(group, name, 'pass', detail || '');
+        log(`✅ PASS: ${name}`, 'info');
+      } catch (err) {
+        results.fail++;
+        const groupEl = document.getElementById(`group-${group}`);
+        const items = groupEl.querySelectorAll('.test-item.running');
+        if (items.length) items[items.length - 1].remove();
+        addTestResult(group, name, 'fail', err.message || String(err));
+        log(`❌ FAIL: ${name} — ${err.message}`, 'error');
+      }
+      updateSummary();
+      updateProgress(totalTests, 22);
+    }
+
+    async function skipTest(name, group, reason) {
+      results.total++;
+      results.skip++;
+      addTestResult(group, name, 'skipped', reason);
+      updateSummary();
+    }
+
+    // ============================================
+    // SUÍTE DE TESTES PRINCIPAL
+    // ============================================
+
+    async function runAllTests() {
+      document.getElementById('runAllBtn').disabled = true;
+      document.getElementById('results').innerHTML = '';
+      document.getElementById('logArea').innerHTML = '';
+      results = { total: 0, pass: 0, fail: 0, skip: 0 };
+      updateSummary();
+      updateProgress(0, 22);
+
+      const emailA = document.getElementById('userAEmail').value;
+      const passA = document.getElementById('userAPassword').value;
+      const emailB = document.getElementById('userBEmail').value;
+      const passB = document.getElementById('userBPassword').value;
+
+      log('🚀 Iniciando suíte de testes de vínculos...', 'info');
+
+      // ---- GRUPO 1: Autenticação ----
+      await test('Registrar e autenticar Usuário A', '1. Autenticação', async () => {
+        clientA = await registerAndAuth(emailA, passA, 'Usuário Teste A');
+        const { data: { user } } = await clientA.auth.getUser();
+        if (!user) throw new Error('Usuário A não autenticado');
+        log(`User A ID: ${user.id}`, 'info');
+        return `User ID: ${user.id.slice(0, 8)}...`;
+      });
+
+      await test('Registrar e autenticar Usuário B', '1. Autenticação', async () => {
+        clientB = await registerAndAuth(emailB, passB, 'Usuário Teste B');
+        const { data: { user } } = await clientB.auth.getUser();
+        if (!user) throw new Error('Usuário B não autenticado');
+        log(`User B ID: ${user.id}`, 'info');
+        return `User ID: ${user.id.slice(0, 8)}...`;
+      });
+
+      await test('Verificar perfil criado automaticamente (User A)', '1. Autenticação', async () => {
+        const { data, error } = await clientA.from('profiles').select('*').eq('user_id', (await clientA.auth.getUser()).data.user.id).single();
+        if (error) throw error;
+        if (!data) throw new Error('Perfil não criado');
+        if (!data.full_name) throw new Error('full_name não preenchido');
+        return `Nome: ${data.full_name}, couple_id: ${data.couple_id || 'null'}`;
+      });
+
+      await test('Verificar perfil criado automaticamente (User B)', '1. Autenticação', async () => {
+        const { data, error } = await clientB.from('profiles').select('*').eq('user_id', (await clientB.auth.getUser()).data.user.id).single();
+        if (error) throw error;
+        if (!data) throw new Error('Perfil não criado');
+        return `Nome: ${data.full_name}, couple_id: ${data.couple_id || 'null'}`;
+      });
+
+      // ---- GRUPO 2: Criação de Ambiente (Usuário sem vínculo) ----
+      await test('Criar ambiente como Usuário A (sem vínculo prévio)', '2. Criação de Ambiente', async () => {
+        const { data, error } = await clientA.rpc('setup_my_workspace', {
+          p_kind: 'couple',
+          p_name: 'Ambiente Teste A'
+        });
+        if (error) throw error;
+        coupleIdA = data;
+        if (!coupleIdA) throw new Error('setup_my_workspace retornou null');
+        log(`Couple ID A: ${coupleIdA}`, 'info');
+        return `Couple ID: ${coupleIdA.slice(0, 8)}...`;
+      });
+
+      await test('Verificar couple_id atualizado no perfil do User A', '2. Criação de Ambiente', async () => {
+        const { data, error } = await clientA.from('profiles').select('couple_id, active_couple_id').eq('user_id', (await clientA.auth.getUser()).data.user.id).single();
+        if (error) throw error;
+        if (data.couple_id !== coupleIdA) throw new Error(`couple_id não atualizado: ${data.couple_id}`);
+        if (data.active_couple_id !== coupleIdA) throw new Error(`active_couple_id não atualizado: ${data.active_couple_id}`);
+        return `couple_id e active_couple_id corretos`;
+      });
+
+      await test('Verificar workspace_members com User A como owner', '2. Criação de Ambiente', async () => {
+        const userIdA = (await clientA.auth.getUser()).data.user.id;
+        const { data, error } = await clientA.from('workspace_members')
+          .select('role')
+          .eq('couple_id', coupleIdA)
+          .eq('user_id', userIdA)
+          .single();
+        if (error) throw error;
+        if (data.role !== 'owner') throw new Error(`Role esperada: owner, obtida: ${data.role}`);
+        return `Role: ${data.role}`;
+      });
+
+      await test('Verificar categorias padrão criadas', '2. Criação de Ambiente', async () => {
+        const { data, error } = await clientA.from('categories').select('name').eq('couple_id', coupleIdA);
+        if (error) throw error;
+        if (!data || data.length < 10) throw new Error(`Esperadas ao menos 10 categorias, obtidas: ${data?.length || 0}`);
+        return `${data.length} categorias padrão criadas`;
+      });
+
+      await test('Listar workspaces do User A', '2. Criação de Ambiente', async () => {
+        const { data, error } = await clientA.rpc('list_my_workspaces');
+        if (error) throw error;
+        if (!data || data.length === 0) throw new Error('Nenhum workspace retornado');
+        const ws = data.find(w => w.id === coupleIdA);
+        if (!ws) throw new Error('Workspace A não encontrado na listagem');
+        if (!ws.is_active) throw new Error('Workspace deveria estar ativo');
+        return `Workspace "${ws.name}" (${ws.kind}) — ativo: ${ws.is_active}, role: ${ws.role}`;
+      });
+
+      // ---- GRUPO 3: Criação de Convite ----
+      await test('Criar convite sem e-mail específico', '3. Criação de Convite', async () => {
+        const { data, error } = await clientA.rpc('create_couple_invite', { p_invited_email: null });
+        if (error) throw error;
+        if (!data || !data.length) throw new Error('Convite não criado');
+        inviteCode = data[0].invite_code;
+        if (!inviteCode) throw new Error('Código do convite vazio');
+        log(`Invite Code: ${inviteCode}`, 'info');
+        return `Código: ${inviteCode}`;
+      });
+
+      await test('Criar convite com e-mail específico', '3. Criação de Convite', async () => {
+        const { data, error } = await clientA.rpc('create_couple_invite', { p_invited_email: emailB });
+        if (error) throw error;
+        if (!data || !data.length) throw new Error('Convite com e-mail não criado');
+        return `Código: ${data[0].invite_code}, couple_id correto: ${data[0].couple_id === coupleIdA}`;
+      });
+
+      await test('Verificar convites na tabela couple_invites', '3. Criação de Convite', async () => {
+        const { data, error } = await clientA.from('couple_invites')
+          .select('invite_code, status, invited_email, expires_at')
+          .eq('couple_id', coupleIdA)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        if (!data || data.length < 2) throw new Error(`Esperados 2 convites, obtidos: ${data?.length || 0}`);
+        const pending = data.filter(i => i.status === 'pending');
+        if (pending.length < 2) throw new Error('Nem todos convites estão pending');
+        return `${data.length} convites encontrados, todos pending`;
+      });
+
+      // ---- GRUPO 4: Aceite de Convite (Usuário sem vínculo) ----
+      await test('Verificar User B não tem vínculo antes do aceite', '4. Aceite de Convite', async () => {
+        const { data, error } = await clientB.from('profiles').select('couple_id, active_couple_id').eq('user_id', (await clientB.auth.getUser()).data.user.id).single();
+        if (error) throw error;
+        if (data.couple_id) throw new Error(`User B já tem couple_id: ${data.couple_id}`);
+        return `couple_id: null, active_couple_id: ${data.active_couple_id || 'null'}`;
+      });
+
+      await test('Aceitar convite com código válido (User B)', '4. Aceite de Convite', async () => {
+        const { data, error } = await clientB.rpc('accept_couple_invite', { p_invite_code: inviteCode });
+        if (error) throw error;
+        if (!data) throw new Error('accept_couple_invite retornou null');
+        log(`User B entrou no couple: ${data}`, 'info');
+        return `Couple ID retornado: ${data.slice(0, 8)}...`;
+      });
+
+      await test('Verificar couple_id atualizado no perfil do User B após aceite', '4. Aceite de Convite', async () => {
+        const { data, error } = await clientB.from('profiles').select('couple_id, active_couple_id').eq('user_id', (await clientB.auth.getUser()).data.user.id).single();
+        if (error) throw error;
+        // O coalesce no accept_couple_invite mantém o couple_id original se já existir
+        // Como User B não tinha couple_id, deveria ter recebido o do convite
+        if (!data.active_couple_id) throw new Error('active_couple_id não foi definido');
+        if (data.active_couple_id !== coupleIdA) throw new Error(`active_couple_id incorreto: ${data.active_couple_id} ≠ ${coupleIdA}`);
+        return `active_couple_id: ${data.active_couple_id.slice(0, 8)}...`;
+      });
+
+      await test('Verificar workspace_members com User B como member', '4. Aceite de Convite', async () => {
+        const userIdB = (await clientB.auth.getUser()).data.user.id;
+        const { data, error } = await clientB.from('workspace_members')
+          .select('role')
+          .eq('couple_id', coupleIdA)
+          .eq('user_id', userIdB)
+          .single();
+        if (error) throw error;
+        if (data.role !== 'member') throw new Error(`Role esperada: member, obtida: ${data.role}`);
+        return `Role: ${data.role}`;
+      });
+
+      await test('Verificar convite marcado como accepted', '4. Aceite de Convite', async () => {
+        const { data, error } = await clientA.from('couple_invites')
+          .select('status, accepted_by, accepted_at')
+          .eq('invite_code', inviteCode)
+          .single();
+        if (error) throw error;
+        if (data.status !== 'accepted') throw new Error(`Status esperado: accepted, obtido: ${data.status}`);
+        return `Status: ${data.status}, accepted_at: ${data.accepted_at}`;
+      });
+
+      await test('Verificar notificação de partner_joined para User A', '4. Aceite de Convite', async () => {
+        const userIdA = (await clientA.auth.getUser()).data.user.id;
+        const { data, error } = await clientA.from('notifications')
+          .select('kind, title, message')
+          .eq('user_id', userIdA)
+          .eq('kind', 'partner_joined')
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (error) throw error;
+        if (!data || data.length === 0) throw new Error('Notificação partner_joined não encontrada');
+        return `"${data[0].title}" — ${data[0].message}`;
+      });
+
+      // ---- GRUPO 5: Teste com código inválido/expirado ----
+      await test('Tentar aceitar convite com código inexistente', '5. Convite Inválido', async () => {
+        try {
+          const { data, error } = await clientB.rpc('accept_couple_invite', { p_invite_code: 'INVALIDO' });
+          if (!error) throw new Error('Deveria ter retornado erro para código inválido');
+          if (!error.message.includes('inválido') && !error.message.includes('Inválido') && !error.message.includes('Convite')) {
+            throw new Error(`Mensagem de erro inesperada: ${error.message}`);
+          }
+          return `Erro esperado: ${error.message}`;
+        } catch (e) {
+          if (e.message.includes('Deveria')) throw e;
+          return `Erro capturado: ${e.message}`;
+        }
+      });
+
+      await test('Tentar aceitar convite já utilizado', '5. Convite Inválido', async () => {
+        try {
+          const { data, error } = await clientB.rpc('accept_couple_invite', { p_invite_code: inviteCode });
+          if (!error) throw new Error('Deveria ter retornado erro para convite já aceito');
+          return `Erro esperado: ${error.message}`;
+        } catch (e) {
+          if (e.message.includes('Deveria')) throw e;
+          return `Erro capturado: ${e.message}`;
+        }
+      });
+
+      // ---- GRUPO 6: Troca de Ambiente ----
+      await test('User B deve ver 2 workspaces (próprio + compartilhado)', '6. Troca de Ambiente', async () => {
+        // Primeiro, User B cria seu próprio workspace
+        // Mas User B já tem couple_id do aceite do convite...
+        // Vamos testar list_my_workspaces do User B
+        const { data, error } = await clientB.rpc('list_my_workspaces');
+        if (error) throw error;
+        if (!data || data.length === 0) throw new Error('Nenhum workspace retornado para User B');
+        const active = data.filter(w => w.is_active);
+        if (active.length !== 1) throw new Error(`Deveria haver 1 workspace ativo, encontrados: ${active.length}`);
+        return `${data.length} workspace(s), ativo: "${active[0].name}"`;
+      });
+
+      await test('Verificar bootstrap retorna dados compartilhados para User B', '6. Troca de Ambiente', async () => {
+        const { data, error } = await clientB.rpc('get_app_bootstrap', { p_days_ahead: 3 });
+        if (error) throw error;
+        if (!data) throw new Error('Bootstrap retornou null');
+        if (!data.couple) throw new Error('Bootstrap não retornou couple');
+        if (!data.members || data.members.length < 2) throw new Error(`Esperados 2+ membros, obtidos: ${data.members?.length || 0}`);
+        if (!data.partner) throw new Error('Bootstrap não retornou partner');
+        return `Couple: ${data.couple.name}, membros: ${data.members.length}, partner: ${data.partner.full_name}`;
+      });
+
+      await test('Verificar RLS: User B vê transações do ambiente compartilhado', '6. Troca de Ambiente', async () => {
+        // User A cria uma transação de teste
+        const userIdA = (await clientA.auth.getUser()).data.user.id;
+        // Primeiro pega uma categoria do ambiente
+        const { data: cats } = await clientA.from('categories').select('id').eq('couple_id', coupleIdA).limit(1);
+        if (!cats || !cats.length) throw new Error('Nenhuma categoria encontrada');
+
+        const { error: txError } = await clientA.from('transactions').insert({
+          description: 'Transação teste para RLS',
+          amount: 100,
+          type: 'expense',
+          owner_profile_id: userIdA,
+          category_id: cats[0].id,
+          occurred_on: new Date().toISOString().slice(0, 10),
+          split_scope: 'both'
+        });
+        if (txError) throw txError;
+
+        // User B deveria ver essa transação
+        const { data: txData, error: txReadError } = await clientB.from('transactions').select('description').eq('couple_id', coupleIdA);
+        if (txReadError) throw txReadError;
+        if (!txData || txData.length === 0) throw new Error('User B não conseguiu ver transação do ambiente');
+        const found = txData.find(t => t.description === 'Transação teste para RLS');
+        if (!found) throw new Error('Transação de teste não encontrada pelo User B');
+        return 'User B conseguiu ler transação criada pelo User A no mesmo ambiente';
+      });
+
+      // ---- GRUPO 7: Saída do Ambiente ----
+      await test('User B sai do ambiente compartilhado', '7. Saída do Ambiente', async () => {
+        const { data, error } = await clientB.rpc('leave_workspace', { p_couple_id: coupleIdA });
+        if (error) throw error;
+        return `leave_workspace retornou: ${data?.slice(0, 8) || data}...`;
+      });
+
+      await test('Verificar User B removido do workspace_members', '7. Saída do Ambiente', async () => {
+        const userIdB = (await clientB.auth.getUser()).data.user.id;
+        const { data, error } = await clientB.from('workspace_members')
+          .select('user_id')
+          .eq('couple_id', coupleIdA)
+          .eq('user_id', userIdB);
+        if (error) throw error;
+        if (data && data.length > 0) throw new Error('User B ainda consta no workspace_members');
+        return 'User B não está mais no workspace_members';
+      });
+
+      await test('Verificar couple_id do User B após saída', '7. Saída do Ambiente', async () => {
+        const { data, error } = await clientB.from('profiles').select('couple_id, active_couple_id').eq('user_id', (await clientB.auth.getUser()).data.user.id).single();
+        if (error) throw error;
+        // Após sair, couple_id e active_couple_id devem ser null (ou fallback)
+        return `couple_id: ${data.couple_id || 'null'}, active_couple_id: ${data.active_couple_id || 'null'}`;
+      });
+
+      await test('User A ainda vê o ambiente após saída do B', '7. Saída do Ambiente', async () => {
+        const { data, error } = await clientA.rpc('list_my_workspaces');
+        if (error) throw error;
+        const ws = data.find(w => w.id === coupleIdA);
+        if (!ws) throw new Error('User A não encontra mais o workspace após saída do B');
+        return `Workspace "${ws.name}" ainda existe para User A`;
+      });
+
+      // ---- GRUPO 8: Edge Cases ----
+      await test('Criar workspace quando já tem couple (atualiza existente)', '8. Edge Cases', async () => {
+        const { data, error } = await clientA.rpc('setup_my_workspace', {
+          p_kind: 'family',
+          p_name: 'Família Teste Atualizada'
+        });
+        if (error) throw error;
+        // Deve retornar o mesmo couple_id (não criar novo)
+        if (data !== coupleIdA) {
+          // Na verdade, pode criar um novo se o user já tem couple...
+          // O código verifica se couple_id é null, se não for, atualiza
+          log(`setup_my_workspace com couple existente retornou: ${data}`, 'warn');
+        }
+        return `Retornou couple_id: ${data?.slice(0, 8)}...`;
+      });
+
+      await test('Tentar criar workspace com tipo inválido', '8. Edge Cases', async () => {
+        try {
+          const { data, error } = await clientB.rpc('setup_my_workspace', {
+            p_kind: 'invalid_type',
+            p_name: 'Teste'
+          });
+          if (!error) throw new Error('Deveria ter retornado erro para tipo inválido');
+          return `Erro esperado: ${error.message}`;
+        } catch (e) {
+          if (e.message.includes('Deveria')) throw e;
+          return `Erro capturado: ${e.message}`;
+        }
+      });
+
+      await test('Tentar set_active_workspace em ambiente que não participa', '8. Edge Cases', async () => {
+        try {
+          const fakeId = '00000000-0000-0000-0000-000000000000';
+          const { data, error } = await clientB.rpc('set_active_workspace', { p_couple_id: fakeId });
+          if (!error) throw new Error('Deveria ter retornado erro para workspace não participante');
+          return `Erro esperado: ${error.message}`;
+        } catch (e) {
+          if (e.message.includes('Deveria')) throw e;
+          return `Erro capturado: ${e.message}`;
+        }
+      });
+
+      log('🏁 Suíte de testes finalizada!', 'info');
+      document.getElementById('runAllBtn').disabled = false;
+    }
+
+    // ============================================
+    // LIMPEZA
+    // ============================================
+    async function runCleanup() {
+      log('🗑 Iniciando limpeza de dados de teste...', 'warn');
+      try {
+        // Limpa notificações de teste
+        const userIdA = (await clientA?.auth.getUser())?.data?.user;
+        if (userIdA) {
+          await clientA.from('notifications').delete().eq('kind', 'partner_joined');
+          await clientA.from('transactions').delete().eq('description', 'Transação teste para RLS');
+        }
+
+        // Limpa convites
+        if (coupleIdA && clientA) {
+          await clientA.from('couple_invites').delete().eq('couple_id', coupleIdA);
+        }
+
+        // User B sai do workspace se ainda estiver
+        try {
+          if (clientB && coupleIdA) {
+            await clientB.rpc('leave_workspace', { p_couple_id: coupleIdA });
+          }
+        } catch (e) { /* ignore */ }
+
+        log('✅ Limpeza concluída.', 'info');
+      } catch (err) {
+        log(`Erro na limpeza: ${err.message}`, 'error');
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entre Nós | Organização Compartilhada</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="icon" type="image/svg+xml" href="./assets/images/favicon.svg" />
+  <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="./assets/images/favicon.png" />
+  <link rel="stylesheet" href="./styles.css?v=20260806k" />
+</head>
+<body>
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loader-card">
+      <div class="loader-spinner"></div>
+      <strong id="loadingTitle">Carregando seu espaço</strong>
+      <p id="loadingMessage" class="muted">Aguarde enquanto sincronizamos seus dados.</p>
+      <div id="loadingActions" class="loader-actions hidden">
+        <button id="retryBootstrapButton" class="primary-button" type="button">Tentar novamente</button>
+        <button id="logoutFromLoaderButton" class="ghost-button" type="button">Sair da conta</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="page-shell">
+    <section id="authView" class="auth-layout">
+      <!-- Decorative background elements -->
+      <div class="auth-bg-layer">
+        <div class="auth-wave auth-wave-1"></div>
+        <div class="auth-wave auth-wave-2"></div>
+        <div class="auth-wave auth-wave-3"></div>
+        <div class="auth-glow auth-glow-1"></div>
+        <div class="auth-glow auth-glow-2"></div>
+        <div class="auth-grid-pattern"></div>
+      </div>
+
+      <div class="auth-center">
+        <!-- Brand Hero -->
+        <div class="auth-brand">
+          <div class="auth-logo-frame">
+            <img src="./assets/images/logo.png" alt="Entre Nós" class="auth-logo" />
+          </div>
+          <h1>Entre Nós</h1>
+          <p class="auth-tagline">Organize seus planos, metas e conquistas juntos</p>
+          <p class="auth-description">A plataforma que conecta pessoas ao que realmente importa. Finanças, agenda e objetivos em um só lugar — com segurança e simplicidade.</p>
+        </div>
+
+        <!-- Login/Signup Card -->
+        <div class="auth-card-wrapper">
+          <div id="loginCard" class="auth-card-inner">
+            <div class="panel-header compact">
+              <div>
+                <p class="eyebrow">Acesso</p>
+                <h3>Entrar na sua conta</h3>
+              </div>
+            </div>
+
+            <form id="loginForm" class="form-grid single-column">
+              <label>
+                E-mail
+                <input type="email" name="email" placeholder="voce@email.com" required />
+              </label>
+              <label>
+                Senha
+                <input type="password" name="password" placeholder="••••••••" required />
+              </label>
+              <button class="primary-button full-width" type="submit">Entrar</button>
+              <div class="auth-divider-row">
+                <span class="auth-divider-line"></span>
+                <span class="auth-divider-text">ou</span>
+                <span class="auth-divider-line"></span>
+              </div>
+              <button id="googleLoginButton" class="social-button social-button-google full-width" type="button">
+                <svg class="google-icon" width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                Continuar com Google
+              </button>
+            </form>
+
+            <p class="auth-switch">
+              Ainda não tem conta? <a href="#" id="showSignupLink">Criar conta</a>
+            </p>
+          </div>
+
+          <div id="signupCard" class="auth-card-inner hidden">
+            <div class="panel-header compact">
+              <div>
+                <p class="eyebrow">Nova conta</p>
+                <h3>Crie sua conta</h3>
+              </div>
+            </div>
+
+            <form id="signupForm" class="form-grid single-column">
+              <label>
+                Nome
+                <input type="text" name="fullName" placeholder="Seu nome" required />
+              </label>
+              <label>
+                E-mail
+                <input type="email" name="email" placeholder="voce@email.com" required />
+              </label>
+              <label>
+                Senha
+                <input type="password" name="password" placeholder="Crie uma senha" required />
+              </label>
+              <button class="primary-button full-width" type="submit">Criar conta</button>
+              <div class="auth-divider-row">
+                <span class="auth-divider-line"></span>
+                <span class="auth-divider-text">ou</span>
+                <span class="auth-divider-line"></span>
+              </div>
+              <button id="googleSignupButton" class="social-button social-button-google full-width" type="button">
+                <svg class="google-icon" width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                Continuar com Google
+              </button>
+            </form>
+
+            <p class="auth-switch">
+              Já tem conta? <a href="#" id="showLoginLink">Fazer login</a>
+            </p>
+          </div>
+        </div>
+
+        <!-- Trust indicators -->
+        <div class="auth-trust-bar">
+          <span class="auth-trust-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Dados protegidos
+          </span>
+          <span class="auth-trust-dot"></span>
+          <span class="auth-trust-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            Acesso seguro
+          </span>
+          <span class="auth-trust-dot"></span>
+          <span class="auth-trust-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Criptografia ponta a ponta
+          </span>
+        </div>
+
+        <div id="configNote" class="hero-note compact">
+          <strong>Configuração necessária</strong>
+          <p class="muted">
+            Preencha `js/config.js` com a URL e a chave pública do seu projeto Supabase.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="appView" class="app-shell hidden">
+      <div id="sidebarOverlay" class="sidebar-overlay"></div>
+      <aside class="sidebar">
+        <div class="sidebar-brand-logo">
+          <img src="./assets/images/logo.png" alt="Entre Nós" class="sidebar-logo" />
+        </div>
+
+        <div class="sidebar-user-card">
+          <div id="sidebarAvatar" class="avatar-circle avatar-circle-lg">
+            <span class="avatar-placeholder">?</span>
+          </div>
+          <div class="sidebar-user-info">
+            <strong id="sidebarUserName">Usuário</strong>
+            <p id="sidebarUserEmail" class="muted">—</p>
+          </div>
+        </div>
+
+        <div class="couple-card">
+          <div class="couple-card-header">
+            <p class="eyebrow">Ambiente</p>
+            <button id="unlinkButton" class="leave-workspace-icon hidden" type="button" title="Sair do ambiente" aria-label="Sair do ambiente">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            </button>
+          </div>
+
+          <div class="env-selector-wrapper">
+            <button id="envSelectorTrigger" class="env-selector-trigger" type="button" aria-expanded="false" aria-haspopup="listbox">
+              <div class="env-selector-info">
+                <strong id="coupleName">Seu espaço</strong>
+                <p id="partnerStatus" class="muted">Crie um ambiente ou entre em um convite para começar.</p>
+              </div>
+              <svg class="env-selector-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+
+            <div id="envSelectorDropdown" class="env-selector-dropdown hidden" role="listbox" aria-label="Selecionar ambiente">
+              <div id="envSelectorList" class="env-selector-list"></div>
+            </div>
+          </div>
+
+          <select id="workspaceSelect" class="workspace-select hidden" aria-label="Trocar ambiente"></select>
+        </div>
+
+        <nav class="nav-stack">
+          <button class="nav-link active" data-tab-target="dashboardTab">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            Dashboard
+          </button>
+          <button class="nav-link" data-tab-target="transactionsTab">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+            Finanças
+          </button>
+          <button class="nav-link" data-tab-target="accountsTab">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+            Contas
+          </button>
+          <button class="nav-link" data-tab-target="reportsTab">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+            Relatórios
+          </button>
+          <button class="nav-link" data-tab-target="goalsTab">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+            Metas
+          </button>
+          <button class="nav-link" data-tab-target="agendaTab">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            Agenda
+          </button>
+          <button class="nav-link" data-tab-target="settingsTab">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            Configurações
+          </button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="sidebar-footer-actions">
+            <button id="refreshButton" class="sidebar-action-btn" type="button" aria-label="Atualizar" title="Atualizar">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+            </button>
+            <button id="notificationToggle" class="sidebar-action-btn" type="button" aria-label="Notificações" title="Notificações">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+              <span id="notificationDot" class="notification-dot hidden"></span>
+            </button>
+            <button id="logoutButton" class="sidebar-action-btn" type="button" aria-label="Sair" title="Sair">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+            </button>
+          </div>
+        </div>
+
+      </aside>
+
+      <div class="main-shell">
+        <button id="mobileSidebarToggle" class="ghost-button mobile-sidebar-toggle" type="button" aria-label="Abrir menu">&#9776;</button>
+
+        <section id="notificationPanel" class="notification-panel panel hidden">
+          <div class="panel-header compact">
+            <div>
+              <p class="eyebrow">Feed interno</p>
+              <h3>Notificações</h3>
+            </div>
+            <button id="markAllReadButton" class="ghost-button" type="button">Marcar como lidas</button>
+          </div>
+          <div id="notificationList" class="stack-list"></div>
+        </section>
+
+        <section id="dashboardTab" class="tab-panel">
+          <article id="workspaceSetupPanel" class="panel onboarding-panel hidden">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Primeiro acesso</p>
+                <h3>Configure seu primeiro ambiente em poucos passos</h3>
+              </div>
+            </div>
+
+            <p class="muted">
+              Primeiro escolha como quer começar: criar seu espaço agora ou entrar em um convite que já recebeu.
+            </p>
+
+            <div class="onboarding-mode-switch">
+              <button class="primary-button onboarding-mode-button" type="button" data-onboarding-mode="create">Criar ambiente</button>
+              <button class="ghost-button onboarding-mode-button" type="button" data-onboarding-mode="join">Entrar com convite</button>
+            </div>
+
+            <div id="onboardingCreatePanel" class="onboarding-expand hidden">
+              <form id="workspaceSetupForm" class="form-grid onboarding-form-panel">
+                <div class="full-width">
+                  <p class="eyebrow small-eyebrow">Etapa 1</p>
+                  <strong>Como você deseja utilizar o Entre Nós?</strong>
+                </div>
+                <label>
+                  Tipo de ambiente
+                  <select name="workspaceKind" required>
+                    <option value="" disabled selected>Selecione o tipo de ambiente</option>
+                    <option value="couple">Casal</option>
+                    <option value="family">Família</option>
+                    <option value="group">Grupo</option>
+                    <option value="company">Empresa</option>
+                  </select>
+                </label>
+                <label>
+                  Nome do ambiente
+                  <input type="text" name="workspaceName" placeholder="Ex.: Nossa casa" />
+                </label>
+                <div class="onboarding-note full-width">
+                  <strong>O que acontece depois?</strong>
+                  <p class="muted">Você entra no ambiente já como participante e pode convidar outras pessoas logo em seguida.</p>
+                </div>
+                <button class="primary-button full-width" type="submit">Criar e continuar</button>
+              </form>
+            </div>
+
+            <div id="onboardingJoinPanel" class="onboarding-expand hidden">
+              <form id="onboardingInviteForm" class="form-grid single-column onboarding-form-panel">
+                <div>
+                  <p class="eyebrow small-eyebrow">Etapa 1</p>
+                  <strong>Entrar em um ambiente existente</strong>
+                </div>
+                <label>
+                  Código do convite
+                  <input type="text" name="inviteCode" placeholder="Cole o código recebido" required />
+                </label>
+                <div class="onboarding-note">
+                  <strong>Use esta opção se alguém já te convidou</strong>
+                  <p class="muted">Ao entrar, esse ambiente passa a ficar disponível na sua lista e vira o ambiente ativo.</p>
+                </div>
+                <button class="secondary-button full-width" type="submit">Entrar no ambiente</button>
+              </form>
+            </div>
+
+            <div id="onboardingCreatedList" class="onboarding-created-list hidden">
+              <div class="onboarding-created-header">
+                <p class="eyebrow small-eyebrow">Ambientes criados</p>
+                <p class="muted">Selecione um ambiente para começar a usar ou crie um novo.</p>
+              </div>
+              <div id="onboardingCreatedItems" class="stack-list"></div>
+            </div>
+          </article>
+
+          <article class="panel dashboard-toolbar">
+            <div>
+              <p class="eyebrow">Centro de comando</p>
+              <h3>Entenda o seu momento em poucos segundos</h3>
+            </div>
+            <form id="dashboardFiltersForm" class="dashboard-filter-form">
+              <label>
+                Período
+                <select name="period">
+                  <option value="7">Últimos 7 dias</option>
+                  <option value="30" selected>Últimos 30 dias</option>
+                  <option value="90">Últimos 90 dias</option>
+                  <option value="365">Últimos 12 meses</option>
+                  <option value="all">Todo o período</option>
+                </select>
+              </label>
+              <label>
+                Pessoa
+                <select name="ownerProfileId" id="dashboardOwnerSelect">
+                  <option value="">Todos do ambiente</option>
+                </select>
+              </label>
+            </form>
+          </article>
+
+          <div class="summary-grid" id="summaryGrid"></div>
+
+          <div class="dashboard-grid">
+            <article class="panel pulse-panel" style="grid-column:1/-1">
+              <div class="panel-header compact">
+                <div>
+                  <p class="eyebrow">Pulso do dia</p>
+                  <h3>Resumo rápido</h3>
+                </div>
+              </div>
+              <div id="dashboardPulse" class="pulse-grid"></div>
+              <div id="pulseUpcomingBills" class="pulse-upcoming-section"></div>
+              <div id="pulseUpcomingEvents" class="pulse-upcoming-section"></div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Leitura inteligente</p>
+                  <h3>Saúde do ambiente</h3>
+                </div>
+                <span id="healthPill" class="badge">Sem dados</span>
+              </div>
+              <div id="healthEnvName" class="health-env-name"></div>
+              <div class="health-summary-row">
+                <div class="health-score-row">
+                  <div class="health-score-display">
+                    <strong id="healthGaugeValue" class="health-score-number">—</strong>
+                    <span id="healthInstantDelta" class="health-instant-delta"></span>
+                    <span id="healthClassification" class="muted">saúde geral</span>
+                  </div>
+                  <div class="health-bar-track">
+                    <div id="healthGaugeFill" class="health-bar-fill"></div>
+                  </div>
+                </div>
+                <button id="healthDetailsToggle" class="ghost-button health-details-btn" type="button" aria-expanded="false">
+                  Ver detalhes <span class="health-toggle-icon" aria-hidden="true">&#9660;</span>
+                </button>
+              </div>
+              <div id="healthExplanation" class="health-explanation hidden"></div>
+              <div id="healthTrendArea" class="health-trend-area hidden">
+                <div class="health-trend-header">
+                  <span class="health-trend-label">Evolução da saúde</span>
+                  <span id="healthScoreDelta" class="health-score-delta"></span>
+                </div>
+                <div id="healthTrendChart" class="health-trend-chart"></div>
+              </div>
+              <div id="healthDetailsBody" class="health-details-body hidden">
+                <div id="healthFactors" class="health-factors"></div>
+              </div>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Distribuição</p>
+                  <h3>Despesas por pessoa</h3>
+                </div>
+              </div>
+              <div style="position:relative;min-height:180px;max-height:220px">
+                <canvas id="expensesByPersonChart"></canvas>
+              </div>
+            </article>
+
+            <article class="panel" style="grid-column:1/-1">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Evolução</p>
+                  <h3>Receitas e despesas por mês</h3>
+                </div>
+              </div>
+              <div style="position:relative;min-height:180px;max-height:220px">
+                <canvas id="monthlyTrendChart"></canvas>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="transactionsTab" class="tab-panel hidden">
+          <div class="finance-top-row">
+            <article class="panel finance-form-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Novo lançamento</p>
+                  <h3>Registrar movimentação</h3>
+                </div>
+              </div>
+
+              <form id="transactionForm" class="form-grid">
+                <label>
+                  Descrição
+                  <input type="text" name="description" placeholder="Ex.: Almoço" required />
+                </label>
+                <label>
+                  Valor
+                  <input type="text" name="amount" inputmode="decimal" data-money placeholder="0,00" required />
+                </label>
+                <label>
+                  Tipo
+                  <select name="type" required>
+                    <option value="expense">Despesa</option>
+                    <option value="income">Receita</option>
+                  </select>
+                </label>
+                <label>
+                  Responsável
+                  <select name="ownerProfileId" id="transactionOwnerSelect" required></select>
+                </label>
+                <label>
+                  Categoria
+                  <select name="categoryId" id="transactionCategorySelect" required></select>
+                </label>
+                <label>
+                  Data
+                  <input type="date" name="occurredOn" required />
+                </label>
+                <label>
+                  Ambiente
+                  <select name="splitScope" id="transactionScopeSelect">
+                    <option value="self">Individual</option>
+                  </select>
+                </label>
+                <label>
+                  Meta vinculada
+                  <select name="goalId" id="transactionGoalSelect">
+                    <option value="">Nenhuma</option>
+                  </select>
+                </label>
+                <label class="full-width">
+                  Observação
+                  <textarea name="note" rows="2" placeholder="Detalhes do lançamento"></textarea>
+                </label>
+                <button class="primary-button full-width" type="submit">Salvar transação</button>
+              </form>
+            </article>
+
+          </div>
+
+          <article class="panel transactions-panel">
+            <div class="panel-header compact">
+              <div>
+                <p class="eyebrow">Histórico</p>
+                <h3>Movimentações registradas</h3>
+              </div>
+            </div>
+
+            <div class="tab-filter-bar">
+              <label>
+                Ambiente
+                <select id="transactionWorkspaceFilter">
+                  <option value="">Todos os ambientes</option>
+                </select>
+              </label>
+              <label>
+                Responsável
+                <select id="filterOwnerSelect">
+                  <option value="">Todos</option>
+                </select>
+              </label>
+              <label>
+                Categoria
+                <select id="filterCategorySelect">
+                  <option value="">Todas</option>
+                </select>
+              </label>
+              <label>
+                Tipo
+                <select id="filterTypeSelect">
+                  <option value="">Todos</option>
+                  <option value="income">Receitas</option>
+                  <option value="expense">Despesas</option>
+                </select>
+              </label>
+              <label>
+                Buscar
+                <input type="text" id="filterSearchInput" placeholder="Ex.: Almoço" />
+              </label>
+            </div>
+
+            <div id="transactionList" class="stack-list"></div>
+          </article>
+        </section>
+
+        <section id="accountsTab" class="tab-panel hidden">
+          <article class="panel bills-panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Contas</p>
+                <h3>Próximos vencimentos</h3>
+              </div>
+            </div>
+
+            <div class="tab-filter-bar">
+              <label>
+                Ambiente
+                <select id="billWorkspaceFilter">
+                  <option value="">Todos os ambientes</option>
+                </select>
+              </label>
+              <label>
+                Responsável
+                <select id="billOwnerFilter">
+                  <option value="">Todos</option>
+                </select>
+              </label>
+              <label>
+                Status
+                <select id="billStatusFilter">
+                  <option value="">Todas</option>
+                  <option value="pending">Pendentes</option>
+                  <option value="paid">Pagas</option>
+                </select>
+              </label>
+            </div>
+
+            <form id="billForm" class="form-grid bills-form-wide">
+              <label>
+                Conta
+                <input type="text" name="title" placeholder="Ex.: Internet" required />
+              </label>
+              <label>
+                Valor
+                <input type="text" name="amount" inputmode="decimal" data-money placeholder="0,00" required />
+              </label>
+              <label>
+                Vencimento
+                <input type="date" name="dueDate" required />
+              </label>
+              <label>
+                Responsável
+                <select name="ownerProfileId" id="billOwnerSelect"></select>
+              </label>
+              <label>
+                Ambiente
+                <select name="splitScope" id="billScopeSelect">
+                  <option value="self">Individual</option>
+                </select>
+              </label>
+              <label class="bill-recurring-label">
+                <input type="checkbox" name="isRecurring" value="true" id="billIsRecurring" />
+                Conta recorrente (repete todo mês)
+              </label>
+              <label id="billRecurrenceDayLabel" class="hidden">
+                Dia do vencimento
+                <input type="number" name="recurrenceDay" min="1" max="31" placeholder="Ex.: 15" id="billRecurrenceDay" />
+              </label>
+              <button class="secondary-button full-width" type="submit">Adicionar conta</button>
+            </form>
+
+            <div class="bills-list-wrapper">
+              <div id="billsList" class="stack-list"></div>
+            </div>
+          </article>
+        </section>
+
+        <section id="reportsTab" class="tab-panel hidden">
+          <div class="report-toolbar panel">
+            <div class="panel-header compact">
+              <div>
+                <p class="eyebrow">Relatórios</p>
+                <h3>Análise detalhada do ambiente</h3>
+              </div>
+              <div class="report-export-btns">
+                <button id="exportCsvButton" class="secondary-button report-export-btn" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+                  Exportar CSV
+                </button>
+                <button id="exportPdfButton" class="secondary-button report-export-btn" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                  Exportar PDF
+                </button>
+              </div>
+            </div>
+            <div class="report-period-bar">
+              <div class="report-scope-group">
+                <label class="report-period-label" for="reportScopeSelect">Escopo</label>
+                <select id="reportScopeSelect" class="report-scope-select">
+                  <option value="workspace" selected>Ambiente</option>
+                  <option value="individual">Individual</option>
+                </select>
+              </div>
+              <div class="report-period-group">
+                <label class="report-period-label">Período</label>
+                <div class="report-period-selects">
+                  <select id="reportPeriodSelect" class="report-period-select">
+                    <option value="week">Esta semana</option>
+                    <option value="month" selected>Este mês</option>
+                    <option value="year">Este ano</option>
+                    <option value="last_month">Mês passado</option>
+                    <option value="last_year">Ano passado</option>
+                    <option value="all">Todo o período</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                  <div id="reportCustomDates" class="report-custom-dates hidden">
+                    <input type="date" id="reportStartDate" placeholder="De" />
+                    <span>—</span>
+                    <input type="date" id="reportEndDate" placeholder="Até" />
+                  </div>
+                </div>
+              </div>
+              <div class="report-title-group">
+                <label class="report-period-label" for="reportCustomTitle">Título do relatório</label>
+                <input type="text" id="reportCustomTitle" class="report-custom-title" placeholder="Ex.: Fechamento de agosto" />
+              </div>
+              <div class="report-detail-toggle">
+                <button class="report-detail-btn active" data-report-detail="summary" type="button">Resumo</button>
+                <button class="report-detail-btn" data-report-detail="detailed" type="button">Detalhado</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="report-type-grid" id="reportTypeGrid">
+            <button class="report-type-card active" data-report-type="general" type="button">
+              <div class="report-type-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+              </div>
+              <div class="report-type-info">
+                <strong>Resumo geral</strong>
+                <span>Visão completa das finanças</span>
+              </div>
+            </button>
+            <button class="report-type-card" data-report-type="period" type="button">
+              <div class="report-type-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              </div>
+              <div class="report-type-info">
+                <strong>Por período</strong>
+                <span>Análise no intervalo escolhido</span>
+              </div>
+            </button>
+            <button class="report-type-card" data-report-type="top_expenses" type="button">
+              <div class="report-type-icon report-type-icon-danger">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+              </div>
+              <div class="report-type-info">
+                <strong>Maiores gastos</strong>
+                <span>Top 10 despesas do período</span>
+              </div>
+            </button>
+            <button class="report-type-card" data-report-type="top_incomes" type="button">
+              <div class="report-type-icon report-type-icon-success">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
+              </div>
+              <div class="report-type-info">
+                <strong>Maiores receitas</strong>
+                <span>Top 10 entradas do período</span>
+              </div>
+            </button>
+            <button class="report-type-card" data-report-type="by_category" type="button">
+              <div class="report-type-icon report-type-icon-accent">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 2a10 10 0 0 1 0 20"></path><line x1="12" y1="2" x2="12" y2="22"></line></svg>
+              </div>
+              <div class="report-type-info">
+                <strong>Gastos por categoria</strong>
+                <span>Distribuição por categoria</span>
+              </div>
+            </button>
+            <button class="report-type-card" data-report-type="by_group" type="button">
+              <div class="report-type-icon report-type-icon-purple">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+              </div>
+              <div class="report-type-info">
+                <strong>Gastos por grupo</strong>
+                <span>Distribuição por pessoa</span>
+              </div>
+            </button>
+            <button class="report-type-card" data-report-type="comparison" type="button">
+              <div class="report-type-icon report-type-icon-warning">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+              </div>
+              <div class="report-type-info">
+                <strong>Comparativo</strong>
+                <span>Comparar períodos</span>
+              </div>
+            </button>
+            <button class="report-type-card" data-report-type="evolution" type="button">
+              <div class="report-type-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+              </div>
+              <div class="report-type-info">
+                <strong>Evolução</strong>
+                <span>Receitas e despesas ao longo do tempo</span>
+              </div>
+            </button>
+            <button class="report-type-card" data-report-type="recent" type="button">
+              <div class="report-type-icon report-type-icon-teal">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+              </div>
+              <div class="report-type-info">
+                <strong>Movimentações recentes</strong>
+                <span>Últimas transações registradas</span>
+              </div>
+            </button>
+          </div>
+
+          <div id="reportsContent" class="report-content"></div>
+        </section>
+
+        <section id="goalsTab" class="tab-panel hidden">
+          <div class="content-grid">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Metas</p>
+                  <h3>Criar meta</h3>
+                </div>
+              </div>
+              <form id="goalForm" class="form-grid">
+                <label>
+                  Nome da meta
+                  <input type="text" name="name" placeholder="Ex.: Viagem para o Chile" required />
+                </label>
+                <label>
+                  Ambiente
+                  <select name="scope" id="goalScopeSelect">
+                    <option value="individual">Individual</option>
+                  </select>
+                </label>
+                <label>
+                  Valor alvo
+                  <input type="text" name="targetAmount" inputmode="decimal" data-money placeholder="0,00" required />
+                </label>
+                <label>
+                  Prazo
+                  <input type="date" name="targetDate" />
+                </label>
+                <label>
+                  Aporte automático
+                  <select name="autoAllocate">
+                    <option value="true">Ativado</option>
+                    <option value="false">Desativado</option>
+                  </select>
+                </label>
+                <button class="secondary-button full-width" type="submit">Criar meta</button>
+              </form>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Progresso</p>
+                  <h3>Metas em andamento</h3>
+                </div>
+              </div>
+
+              <div class="tab-filter-bar">
+                <label>
+                  Ambiente
+                  <select id="goalWorkspaceFilter">
+                    <option value="">Todos os ambientes</option>
+                  </select>
+                </label>
+                <label>
+                  Responsável
+                  <select id="goalOwnerFilter">
+                    <option value="">Todos</option>
+                  </select>
+                </label>
+              </div>
+
+              <div id="goalList" class="stack-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <section id="agendaTab" class="tab-panel hidden">
+          <div class="agenda-layout">
+            <article class="panel agenda-calendar-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Calendário</p>
+                  <h3 id="calendarMonthTitle">Agenda</h3>
+                </div>
+                <div class="calendar-nav">
+                  <button id="calendarPrevBtn" class="ghost-button calendar-nav-btn" type="button">&#9664;</button>
+                  <button id="calendarTodayBtn" class="ghost-button" type="button">Hoje</button>
+                  <button id="calendarNextBtn" class="ghost-button calendar-nav-btn" type="button">&#9654;</button>
+                </div>
+              </div>
+              <div class="calendar-legend">
+                <span class="legend-item"><span class="legend-dot legend-individual"></span> Individual</span>
+                <span class="legend-item"><span class="legend-dot legend-group"></span> Em conjunto</span>
+              </div>
+              <div id="calendarGrid" class="calendar-grid"></div>
+              <div id="calendarDayDetail" class="calendar-day-detail hidden"></div>
+            </article>
+
+            <div class="agenda-side">
+              <article class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Agenda</p>
+                    <h3>Novo compromisso</h3>
+                  </div>
+                </div>
+
+                <form id="eventForm" class="form-grid single-column">
+                  <label>
+                    Título
+                    <input type="text" name="title" placeholder="Ex.: Consulta, aniversário, pagar escola" required />
+                  </label>
+                  <div class="form-row-2col">
+                    <label>
+                      Tipo
+                      <select name="kind">
+                        <option value="event">Evento</option>
+                        <option value="task">Tarefa</option>
+                        <option value="reminder">Lembrete</option>
+                      </select>
+                    </label>
+                    <label>
+                      Ambiente
+                      <select name="scope" id="eventScopeSelect">
+                        <option value="individual">Individual</option>
+                      </select>
+                    </label>
+                  </div>
+                  <label>
+                    Data
+                    <input type="date" name="dueDate" />
+                  </label>
+                  <label>
+                    Responsável
+                    <select name="ownerProfileId" id="eventOwnerSelect"></select>
+                  </label>
+                  <label>
+                    Observação
+                    <textarea name="note" rows="2" placeholder="Detalhes do compromisso"></textarea>
+                  </label>
+                  <button class="primary-button full-width" type="submit">Adicionar à agenda</button>
+                </form>
+              </article>
+
+              <article class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Compromissos</p>
+                    <h3 id="agendaListTitle">Próximos itens</h3>
+                  </div>
+                  <div class="agenda-filter-btns">
+                    <button class="ghost-button agenda-filter-btn active" data-agenda-filter="all" type="button">Todos</button>
+                    <button class="ghost-button agenda-filter-btn" data-agenda-filter="individual" type="button">Individual</button>
+                    <button class="ghost-button agenda-filter-btn" data-agenda-filter="group" type="button">Em conjunto</button>
+                  </div>
+                </div>
+                <div id="eventList" class="stack-list"></div>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section id="settingsTab" class="tab-panel hidden">
+          <div class="settings-grid">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Perfil</p>
+                  <h3>Seu espaço pessoal</h3>
+                </div>
+              </div>
+
+              <form id="profileForm" class="form-grid single-column">
+                <div class="profile-avatar-section">
+                  <div id="profileAvatarPreview" class="avatar-circle avatar-circle-xl">
+                    <span class="avatar-placeholder">?</span>
+                  </div>
+                  <div class="profile-avatar-actions">
+                    <label class="ghost-button avatar-upload-btn">
+                      Escolher foto
+                      <input type="file" id="avatarFileInput" accept="image/*" hidden />
+                    </label>
+                    <button id="avatarRemoveBtn" class="ghost-button hidden" type="button">Remover foto</button>
+                  </div>
+                </div>
+                <label>
+                  Nome
+                  <input type="text" name="fullName" required />
+                </label>
+                <label>
+                  Renda mensal
+                  <input type="number" name="monthlyIncome" min="0" step="0.01" />
+                </label>
+                <input type="hidden" name="avatarUrl" />
+                <button class="primary-button full-width" type="submit">Salvar perfil</button>
+              </form>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Aparência</p>
+                  <h3>Tema do sistema</h3>
+                </div>
+              </div>
+              <button id="darkModeToggle" class="dark-mode-toggle" type="button">
+                <span id="darkModeLabel">Modo escuro</span>
+                <div class="dark-mode-toggle-track">
+                  <div class="dark-mode-toggle-thumb"></div>
+                </div>
+              </button>
+            </article>
+
+            <article class="panel env-card">
+              <div class="panel-header compact">
+                <div>
+                  <p class="eyebrow">Vínculos</p>
+                  <h3>Ambientes</h3>
+                </div>
+              </div>
+
+              <!-- Active workspace info -->
+              <div id="envActiveInfo" class="env-active-info hidden">
+                <div class="env-active-header">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                  <div>
+                    <p class="eyebrow small-eyebrow">Ambiente ativo</p>
+                    <strong id="envActiveName">—</strong>
+                  </div>
+                </div>
+                <div class="env-active-meta">
+                  <span id="envActiveKind">—</span>
+                  <span id="envActiveRole">—</span>
+                </div>
+                <div class="env-invite-section">
+                  <p class="env-step-hint">Código do ambiente (compartilhe para convidar):</p>
+                  <div class="env-code-display">
+                    <strong id="envInviteCodeValue">—</strong>
+                    <button class="ghost-button" id="envCopyCodeBtn" type="button" title="Copiar código">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    </button>
+                  </div>
+                  <button class="secondary-button" id="envGenerateCodeBtn" type="button">Gerar código de convite</button>
+                </div>
+              </div>
+
+              <!-- No workspace message -->
+              <div id="envNoWorkspace" class="env-empty-msg">
+                <p class="muted">Você ainda não possui nenhum ambiente. Crie um novo para começar.</p>
+              </div>
+
+              <!-- Other workspaces list -->
+              <div id="envOtherWorkspaces" class="env-other-workspaces hidden">
+                <p class="eyebrow small-eyebrow">Outros ambientes</p>
+                <div id="workspaceList" class="env-workspace-list"></div>
+              </div>
+
+              <!-- Accept invite -->
+              <div class="env-divider">
+                <span>ou entre com um código</span>
+              </div>
+              <form id="acceptInviteInsideForm" class="env-code-form">
+                <label>
+                  Código do convite
+                  <input type="text" name="inviteCode" placeholder="Cole o código recebido" />
+                </label>
+                <button class="secondary-button" type="submit">Entrar no ambiente</button>
+              </form>
+
+              <!-- Create new workspace (collapsible) -->
+              <div class="settings-collapsible">
+                <button class="settings-collapsible-toggle" type="button" data-collapse-target="envCreateNew" aria-expanded="false">
+                  Criar novo ambiente
+                  <span class="collapse-icon">&#9660;</span>
+                </button>
+                <div id="envCreateNew" class="settings-collapsible-body hidden">
+                  <form id="workspaceSetupFormSettings" class="form-grid single-column env-create-form">
+                    <label>
+                      Tipo de ambiente
+                      <select name="workspaceKind" required>
+                        <option value="" disabled selected>Selecione o tipo</option>
+                        <option value="couple">Casal</option>
+                        <option value="family">Família</option>
+                        <option value="group">Grupo</option>
+                        <option value="company">Empresa</option>
+                      </select>
+                    </label>
+                    <label>
+                      Nome do ambiente
+                      <input type="text" name="workspaceName" placeholder="Ex.: Nossa casa" />
+                    </label>
+                    <button class="primary-button full-width" type="submit">Criar ambiente</button>
+                  </form>
+                </div>
+              </div>
+
+              
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Categorias</p>
+                  <h3>Personalizadas</h3>
+                </div>
+              </div>
+
+              <form id="categoryForm" class="form-grid">
+                <label>
+                  Nome
+                  <input type="text" name="name" placeholder="Ex.: Alimentação, Salário, Moradia" required />
+                </label>
+                <label>
+                  Tipo
+                  <select name="kind">
+                    <option value="expense">Despesa</option>
+                    <option value="income">Receita</option>
+                    <option value="reserve">Reserva</option>
+                  </select>
+                </label>
+                <button class="secondary-button full-width" type="submit">Adicionar categoria</button>
+              </form>
+
+              <div id="categoryList" class="stack-list"></div>
+            </article>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <div id="editModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-label="Editar registro">
+    <div class="modal-card panel">
+      <div class="panel-header compact">
+        <div>
+          <p class="eyebrow" id="editModalEyebrow">Editar</p>
+          <h3 id="editModalTitle">Editar registro</h3>
+        </div>
+        <button id="editModalClose" class="ghost-button" type="button" aria-label="Fechar">&times;</button>
+      </div>
+      <div id="editModalBody"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script type="module" src="./js/main.js?v=20260806r"></script>
+</body>
+</html>

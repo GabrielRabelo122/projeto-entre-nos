@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>Gerar Favicon</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 500px; margin: 40px auto; padding: 20px; text-align: center; }
+    canvas { border: 2px dashed #ccc; border-radius: 12px; margin: 16px auto; display: block; background: #f8fafc; }
+    button { padding: 12px 24px; font-size: 16px; border: none; border-radius: 10px; cursor: pointer; background: linear-gradient(135deg, #22c55e, #3b82f6); color: white; font-weight: 600; }
+    button:hover { opacity: 0.9; }
+    input[type=file] { margin: 12px 0; }
+    p { color: #64748b; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h2>Gerar Favicon Quadrado</h2>
+  <p>Selecione a logo retangular e baixe o favicon quadrado pronto.</p>
+  <input type="file" id="fileInput" accept="image/*" />
+  <br />
+  <canvas id="canvas" width="256" height="256"></canvas>
+  <br />
+  <button id="downloadBtn" style="display:none" onclick="download()">Baixar favicon.png</button>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    let img = null;
+
+    document.getElementById('fileInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        img = new Image();
+        img.onload = () => {
+          draw();
+          document.getElementById('downloadBtn').style.display = 'inline-block';
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function draw() {
+      ctx.clearRect(0, 0, 256, 256);
+      // Fundo com gradiente verde-azul
+      const grad = ctx.createLinearGradient(0, 0, 256, 256);
+      grad.addColorStop(0, '#22c55e');
+      grad.addColorStop(1, '#3b82f6');
+      // Cantos arredondados
+      const r = 40;
+      ctx.beginPath();
+      ctx.moveTo(r, 0);
+      ctx.lineTo(256 - r, 0);
+      ctx.quadraticCurveTo(256, 0, 256, r);
+      ctx.lineTo(256, 256 - r);
+      ctx.quadraticCurveTo(256, 256, 256 - r, 256);
+      ctx.lineTo(r, 256);
+      ctx.quadraticCurveTo(0, 256, 0, 256 - r);
+      ctx.lineTo(0, r);
+      ctx.quadraticCurveTo(0, 0, r, 0);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Desenhar logo centralizada com padding
+      const pad = 36;
+      const aw = 256 - pad * 2;
+      const ah = 256 - pad * 2;
+      const scale = Math.min(aw / img.width, ah / img.height);
+      const w = img.width * scale;
+      const h = img.height * scale;
+      const x = (256 - w) / 2;
+      const y = (256 - h) / 2;
+      ctx.drawImage(img, x, y, w, h);
+    }
+
+    function download() {
+      const link = document.createElement('a');
+      link.download = 'favicon.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+  </script>
+</body>
+</html>

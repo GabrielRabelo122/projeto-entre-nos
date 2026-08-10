@@ -112,8 +112,7 @@ as $$
       from public.couple_invites ci
       where ci.couple_id = c.id
         and ci.status = 'pending'
-        and (ci.expires_at is null or ci.expires_at > now())
-      order by ci.created_at desc
+      order by ci.expires_at desc nulls last, ci.created_at desc
       limit 1
     ) as invite_code
   from public.workspace_members wm
@@ -441,6 +440,7 @@ declare
   v_user_id uuid := auth.uid();
   v_couple_id uuid;
   v_name text;
+  v_invite_code text;
 begin
   if v_user_id is null then
     raise exception 'Usuário não autenticado.';
@@ -475,6 +475,12 @@ begin
   -- Categorias padrão do novo ambiente
   perform public.bootstrap_default_categories(v_couple_id, v_user_id);
 
+  -- Gera automaticamente um código de convite fixo e único para o ambiente
+  v_invite_code := upper(substring(replace(gen_random_uuid()::text, '-', '') from 1 for 8));
+
+  insert into public.couple_invites (couple_id, invited_email, invited_by, invite_code, expires_at)
+  values (v_couple_id, null, v_user_id, v_invite_code, timezone('utc', now()) + interval '36500 days');
+
   -- couple_id mantém o primeiro vínculo (fallback), active_couple_id aponta para o novo
   update public.profiles
   set couple_id = coalesce(couple_id, v_couple_id),
@@ -495,6 +501,7 @@ declare
   v_user_id uuid := auth.uid();
   v_couple_id uuid;
   v_invite_code text;
+  v_existing_code text;
 begin
   if v_user_id is null then
     raise exception 'Usuário não autenticado.';
@@ -519,10 +526,25 @@ begin
     perform public.bootstrap_default_categories(v_couple_id, v_user_id);
   end if;
 
-  v_invite_code := upper(substring(replace(gen_random_uuid()::text, '-', '') from 1 for 8));
+  -- Verifica se já existe um convite pendente para este ambiente.
+  -- Cada ambiente deve ter apenas um convite único e fixo.
+  select ci.invite_code into v_existing_code
+  from public.couple_invites ci
+  where ci.couple_id = v_couple_id
+    and ci.status = 'pending'
+  order by ci.expires_at desc nulls last, ci.created_at asc
+  limit 1;
 
-  insert into public.couple_invites (couple_id, invited_email, invited_by, invite_code)
-  values (v_couple_id, nullif(trim(p_invited_email), ''), v_user_id, v_invite_code);
+  if v_existing_code is not null then
+    -- Reutiliza o convite existente em vez de criar um novo
+    v_invite_code := v_existing_code;
+  else
+    -- Só gera novo código se não houver nenhum convite pendente/válido
+    v_invite_code := upper(substring(replace(gen_random_uuid()::text, '-', '') from 1 for 8));
+
+    insert into public.couple_invites (couple_id, invited_email, invited_by, invite_code, expires_at)
+    values (v_couple_id, nullif(trim(p_invited_email), ''), v_user_id, v_invite_code, timezone('utc', now()) + interval '36500 days');
+  end if;
 
   return query
   select v_couple_id, v_invite_code;
@@ -707,8 +729,9 @@ as $$
 declare
   v_partner record;
   v_owner_name text;
+  v_threshold numeric(12,2) := 500; -- Valor padrão; ajuste manualmente se necessário (sincronizar com APP_CONFIG.highExpenseThreshold no frontend)
 begin
-  if new.type <> 'expense' or new.amount < 500 then
+  if new.type <> 'expense' or new.amount < v_threshold then
     return new;
   end if;
 
@@ -772,7 +795,7 @@ begin
   join public.profiles p on p.user_id = wm.user_id
   where b.couple_id = v_couple_id
     and b.due_date between current_date and current_date + p_days_ahead
-  on conflict do nothing;
+  on conflict (user_id, bill_id, kind) where kind = 'bill_due_soon' do nothing;
 end;
 $$;
 
@@ -999,6 +1022,30 @@ begin
         order by created_at desc
         limit 25
       ) n
+    ), '[]'::jsonb),
+    'personal_transactions', coalesce((
+      select jsonb_agg(
+        jsonb_build_object(
+          'id', t.id,
+          'couple_id', t.couple_id,
+          'owner_profile_id', t.owner_profile_id,
+          'description', t.description,
+          'amount', t.amount,
+          'type', t.type,
+          'occurred_on', t.occurred_on,
+          'category_id', t.category_id,
+          'category', case
+            when c.id is null then null
+            else jsonb_build_object('id', c.id, 'name', c.name, 'icon', c.icon, 'kind', c.kind)
+          end
+        )
+      )
+      from public.transactions t
+      left join public.categories c on c.id = t.category_id
+      where t.owner_profile_id = v_user_id
+        and t.couple_id in (
+          select wm.couple_id from public.workspace_members wm where wm.user_id = v_user_id
+        )
     ), '[]'::jsonb)
   );
 end;
@@ -1247,7 +1294,7 @@ begin
       p_couple_id, v_member.user_id, p_actor_user_id, p_kind, p_title, p_message,
       p_transaction_id, p_bill_id
     )
-    on conflict do nothing;
+    on conflict (user_id, bill_id, kind) where kind = 'bill_due_soon' do nothing;
   end loop;
 end;
 $$;

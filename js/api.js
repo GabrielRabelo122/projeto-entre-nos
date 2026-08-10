@@ -17,6 +17,7 @@ function emptyBootstrap() {
     invites: [],
     categories: [],
     transactions: [],
+    personalTransactions: [],
     goals: [],
     bills: [],
     events: [],
@@ -64,18 +65,22 @@ export async function bootstrapApp(session) {
     console.warn("list_my_workspaces falhou, usando fallback do bootstrap:", error);
     // Se o bootstrap trouxe um couple ativo, monta um workspace mínimo para a UI não ficar inconsistente
     if (bootstrap.couple?.id) {
+      // Busca invite_code dos invites já carregados pelo bootstrap
+      const fallbackCode = Array.isArray(bootstrap.invites)
+        ? (bootstrap.invites.find(i => i.status === 'pending' && i.couple_id === bootstrap.couple.id)?.invite_code || null)
+        : null;
       workspaces = [{
         id: bootstrap.couple.id,
         name: bootstrap.couple.name || "Sem nome",
         kind: bootstrap.couple.kind || "couple",
         role: "owner",
         is_active: true,
-        invite_code: null
+        invite_code: fallbackCode
       }];
     }
   }
 
-  return { ...bootstrap, workspaces };
+  return { ...bootstrap, personalTransactions: bootstrap.personal_transactions || [], workspaces };
 }
 
 export async function upsertProfileFromAuth(user) {
@@ -390,21 +395,15 @@ export async function createBillInstance(formData) {
 }
 
 export async function toggleBillPaid(billId, isPaid) {
-  console.log("[toggleBillPaid] Iniciando — billId:", billId, "isPaid:", isPaid);
   const payload = {
     is_paid: isPaid,
     paid_at: isPaid ? new Date().toISOString() : null
   };
-  console.log("[toggleBillPaid] payload:", payload);
   const { data, error } = await supabase
     .from("bills")
     .update(payload)
     .eq("id", billId);
-  console.log("[toggleBillPaid] resultado — data:", data, "error:", error);
-  if (error) {
-    console.error("[toggleBillPaid] ERRO Supabase:", error.message, error.code, error.details);
-    throw error;
-  }
+  if (error) throw error;
 }
 
 export async function deleteBill(billId) {
@@ -465,6 +464,9 @@ export function expandRecurringBills(bills) {
     }
   }
 
+  // Monta um set de IDs já existentes no array de entrada (evita duplicatas de instâncias virtuais)
+  const existingIds = new Set(bills.map(b => b.id));
+
   const result = [...nonRecurringBills];
 
   for (const bill of bills) {
@@ -473,9 +475,11 @@ export function expandRecurringBills(bills) {
     for (const { year, month } of months) {
       const monthKey = `${year}-${String(month + 1).padStart(2, "0")}`;
       const billMonthKey = `${bill.title}|${monthKey}`;
+      const instanceId = `recur_${bill.id}_${monthKey}`;
 
-      // Se já existe uma conta real para este mês, não gera instância virtual
+      // Se já existe uma conta real para este mês, ou a instância virtual já está no array, não gera
       if (existingBillMonths.has(billMonthKey)) continue;
+      if (existingIds.has(instanceId)) continue;
 
       const maxDay = new Date(year, month + 1, 0).getDate();
       const day = Math.min(bill.recurrence_day, maxDay);
@@ -483,7 +487,7 @@ export function expandRecurringBills(bills) {
 
       result.push({
         ...bill,
-        id: `recur_${bill.id}_${monthKey}`,
+        id: instanceId,
         _template_id: bill.id,
         due_date: dueDate,
         is_paid: false,

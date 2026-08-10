@@ -8,12 +8,12 @@ export const state = {
   invites: [],
   categories: [],
   transactions: [],
+  personalTransactions: [],
   goals: [],
   bills: [],
   events: [],
   notifications: [],
-  activeTab: "dashboardTab",
-  generatedInviteCode: null
+  activeTab: "dashboardTab"
 };
 
 export function patchState(patch) {
@@ -31,6 +31,7 @@ export function clearState() {
     invites: [],
     categories: [],
     transactions: [],
+    personalTransactions: [],
     goals: [],
     bills: [],
     events: [],

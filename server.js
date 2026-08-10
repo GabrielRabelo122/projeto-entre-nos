@@ -48,6 +48,7 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
+  console.log(`Acesse pela rede local em http://<seu-ip>:${PORT}`);
 });

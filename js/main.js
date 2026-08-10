@@ -158,7 +158,7 @@ const reportConfig = {
   customStart: "",
   customEnd: "",
   customTitle: "",
-  scope: "workspace"
+  scope: "individual"
 };
 
 function formDataToObject(formElement) {
@@ -284,6 +284,20 @@ function resetForm(formElement) {
   if (formElement && typeof formElement.reset === "function") {
     formElement.reset();
   }
+}
+
+/**
+ * Debounce: atrasa a execução de uma função até que um tempo de silêncio tenha passado.
+ */
+function debounce(fn, delayMs = 300) {
+  let timer = null;
+  return function (...args) {
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(() => {
+      fn.apply(this, args);
+      timer = null;
+    }, delayMs);
+  };
 }
 
 function previewAvatarInElement(element, url) {
@@ -442,6 +456,18 @@ function bindNavigation() {
     button.addEventListener("click", () => {
       patchState({ activeTab: button.dataset.tabTarget });
       switchTab(button.dataset.tabTarget);
+
+      // Close sidebar on mobile after navigation
+      const sidebarEl = document.querySelector(".sidebar");
+      const sidebarOverlay = document.querySelector("#sidebarOverlay");
+      if (sidebarEl?.classList.contains("sidebar-open")) {
+        sidebarEl.classList.remove("sidebar-open");
+        sidebarOverlay?.classList.remove("active");
+      }
+
+      // Scroll to top on tab switch
+      const mainShell = document.querySelector(".main-shell");
+      if (mainShell) mainShell.scrollTo({ top: 0, behavior: "smooth" });
     });
   });
 }
@@ -855,8 +881,8 @@ function bindAppForms() {
         const inviteCode =
           Array.isArray(data) && data.length ? data[0].invite_code : data?.invite_code || "";
 
-        // Armazena o código gerado no state para persistir após o refresh
-        patchState({ generatedInviteCode: inviteCode });
+        // O código já está correto na resposta do backend via list_my_workspaces
+        // Não armazenamos mais em state.generatedInviteCode para evitar confusão entre ambientes
 
         // Atualiza o código diretamente na UI para feedback imediato
         const codeEl = document.querySelector("#envInviteCodeValue");
@@ -978,14 +1004,15 @@ function bindAppForms() {
         createFn: () => createGoal(formData),
         localItem: localGoal,
         stateKey: "goals",
+        onSuccess: () => {
+          showToast("Meta criada com sucesso.", "success");
+          resetForm(form);
+          resetDatedForms();
+        },
         onError: (error) => {
           showToast(error.message || "Erro ao criar meta.", "error");
         }
       });
-      
-      showToast("Meta criada com sucesso.", "success");
-      resetForm(form);
-      resetDatedForms();
     } catch (error) {
       showToast(error.message, "error");
     } finally {
@@ -998,7 +1025,7 @@ function bindAppForms() {
     const form = event.currentTarget;
     try {
       const formData = await resolveWorkspaceScope(formDataToObject(form));
-      const selectedCategory = state.categories.find((category) => category.id === formData.categoryId);
+      const selectedCategory = (state.categories || []).find((category) => category.id === formData.categoryId);
       if (selectedCategory?.kind === "reserve" && !formData.goalId) {
         throw new Error("Ao usar categoria de reserva, escolha uma meta para receber o aporte automático.");
       }
@@ -1019,14 +1046,15 @@ function bindAppForms() {
         createFn: () => createTransaction(formData),
         localItem: localTransaction,
         stateKey: "transactions",
+        onSuccess: () => {
+          showToast(`${typeLabel} lançada com sucesso.`, "success");
+          resetForm(form);
+          resetDatedForms();
+        },
         onError: (error) => {
           showToast(error.message || "Erro ao criar transação.", "error");
         }
       });
-      
-      showToast(`${typeLabel} lançada com sucesso.`, "success");
-      resetForm(form);
-      resetDatedForms();
     } catch (error) {
       showToast(error.message, "error");
     } finally {
@@ -1054,17 +1082,18 @@ function bindAppForms() {
         createFn: () => createBill(formData),
         localItem: localBill,
         stateKey: "bills",
+        onSuccess: () => {
+          showToast("Conta cadastrada.", "success");
+          resetForm(form);
+          resetDatedForms();
+          // Esconde o campo de recorrência após reset
+          const recurrenceDayLabel = document.querySelector("#billRecurrenceDayLabel");
+          if (recurrenceDayLabel) recurrenceDayLabel.classList.add("hidden");
+        },
         onError: (error) => {
           showToast(error.message || "Erro ao criar conta.", "error");
         }
       });
-      
-      showToast("Conta cadastrada.", "success");
-      resetForm(form);
-      resetDatedForms();
-      // Esconde o campo de recorrência após reset
-      const recurrenceDayLabel = document.querySelector("#billRecurrenceDayLabel");
-      if (recurrenceDayLabel) recurrenceDayLabel.classList.add("hidden");
     } catch (error) {
       showToast(error.message, "error");
     } finally {
@@ -1102,14 +1131,15 @@ function bindAppForms() {
         createFn: () => createEvent(formData),
         localItem: localEvent,
         stateKey: "events",
+        onSuccess: () => {
+          showToast("Compromisso adicionado à agenda.", "success");
+          resetForm(form);
+          resetDatedForms();
+        },
         onError: (error) => {
           showToast(error.message || "Erro ao criar compromisso.", "error");
         }
       });
-      
-      showToast("Compromisso adicionado à agenda.", "success");
-      resetForm(form);
-      resetDatedForms();
     } catch (error) {
       showToast(error.message, "error");
     } finally {
@@ -1178,10 +1208,10 @@ function bindAppForms() {
     });
   }
   if (filterSearchInput) {
-    filterSearchInput.addEventListener("input", () => {
+    filterSearchInput.addEventListener("input", debounce(() => {
       transactionFilters.search = filterSearchInput.value;
       renderEverything(state, transactionFilters, dashboardFilters, reportConfig, billFilters, goalFilters);
-    });
+    }, 300));
   }
 
   // ─── Goal Filters ───
@@ -1276,7 +1306,10 @@ function bindAppForms() {
   if (exportPdfButton) {
     exportPdfButton.addEventListener("click", async () => {
       const printArea = document.querySelector("#reportPrintArea");
-      if (!printArea) return;
+      if (!printArea) {
+        showToast("Nenhum relatório para exportar. Selecione um tipo de relatório primeiro.", "info");
+        return;
+      }
 
       try {
         exportPdfButton.disabled = true;
@@ -1431,12 +1464,14 @@ function bindAppForms() {
     const button = event.target.closest("button");
     if (!button) return;
 
+    let showedLoader = false;
     try {
       if (button.dataset.setActiveWorkspace) {
         setLoadingWithFallback(true, {
           title: "Trocando ambiente",
           message: "Atualizando o ambiente ativo…"
         });
+        showedLoader = true;
         await setActiveWorkspace(button.dataset.setActiveWorkspace);
         await refreshApp({ silent: true, force: true });
         showToast("Ambiente ativado.", "success");
@@ -1449,6 +1484,7 @@ function bindAppForms() {
           title: "Saindo do ambiente",
           message: "Atualizando seus acessos…"
         });
+        showedLoader = true;
         await leaveWorkspace(workspaceId);
         await refreshApp({ silent: true, force: true });
         showToast("Você saiu do ambiente selecionado.", "success");
@@ -1457,18 +1493,25 @@ function bindAppForms() {
       if (button.dataset.deleteTransaction) {
         if (!window.confirm("Deseja realmente excluir esta transação?")) return;
         setLoadingWithFallback(true);
+        showedLoader = true;
         await deleteTransaction(button.dataset.deleteTransaction);
         await refreshApp({ silent: true });
         showToast("Transação excluída.", "success");
       }
 
       if (button.dataset.deleteBill) {
-        if (!window.confirm("Deseja realmente excluir esta conta?")) return;
-        setLoadingWithFallback(true);
         const billId = button.dataset.deleteBill;
-        // Se for instância recorrente, exclui o template
-        const realId = billId.startsWith("recur_") ? billId.split("_")[1] : billId;
-        await deleteBill(realId);
+        // Se for instância recorrente, confirma se quer excluir o template (afeta todas as instâncias)
+        if (billId.startsWith("recur_")) {
+          if (!window.confirm("Esta é uma conta recorrente. Deseja excluir a conta original e todas as suas instâncias futuras?")) return;
+          const templateId = billId.split("_")[1];
+          await deleteBill(templateId);
+        } else {
+          if (!window.confirm("Deseja realmente excluir esta conta?")) return;
+          await deleteBill(billId);
+        }
+        setLoadingWithFallback(true);
+        showedLoader = true;
         await refreshApp({ silent: true });
         showToast("Conta removida.", "success");
       }
@@ -1476,6 +1519,7 @@ function bindAppForms() {
       if (button.dataset.deleteCategory) {
         if (!window.confirm("Deseja realmente excluir esta categoria?")) return;
         setLoadingWithFallback(true);
+        showedLoader = true;
         await deleteCategory(button.dataset.deleteCategory);
         await refreshApp({ silent: true });
         showToast("Categoria removida.", "success");
@@ -1484,6 +1528,7 @@ function bindAppForms() {
       if (button.dataset.deleteGoal) {
         if (!window.confirm("Deseja realmente excluir esta meta?")) return;
         setLoadingWithFallback(true);
+        showedLoader = true;
         await deleteGoal(button.dataset.deleteGoal);
         await refreshApp({ silent: true });
         showToast("Meta removida.", "success");
@@ -1492,6 +1537,7 @@ function bindAppForms() {
       if (button.dataset.deleteEvent) {
         if (!window.confirm("Deseja realmente excluir este compromisso?")) return;
         setLoadingWithFallback(true);
+        showedLoader = true;
         await deleteEvent(button.dataset.deleteEvent);
         await refreshApp({ silent: true });
         showToast("Compromisso excluído.", "success");
@@ -1502,7 +1548,6 @@ function bindAppForms() {
         const billId = button.dataset.toggleBillPaid;
         const currentPaid = button.dataset.currentPaid === "true";
         const newPaidState = !currentPaid;
-        console.log("[Toggle Bill] billId:", billId, "currentPaid:", currentPaid, "newPaidState:", newPaidState);
 
         if (billId.startsWith("recur_")) {
           // Instância recorrente: busca o template e cria uma instância real
@@ -1544,10 +1589,8 @@ function bindAppForms() {
           renderEverything(state, transactionFilters, dashboardFilters, reportConfig, billFilters, goalFilters);
 
           // Chama a API em background — não reverte se falhar
-          toggleBillPaid(billId, newPaidState).then(() => {
-            console.log("[Toggle Bill] API OK — is_paid:", newPaidState);
-          }).catch((error) => {
-            console.warn("[Toggle Bill] Falha na API (mas UI já atualizada):", error);
+          toggleBillPaid(billId, newPaidState).catch((error) => {
+            console.warn("Falha ao atualizar conta no servidor (UI já atualizada):", error);
           });
         }
 
@@ -1556,7 +1599,7 @@ function bindAppForms() {
 
       // Edit transaction
       if (button.dataset.editTransaction) {
-        const record = state.transactions.find(t => t.id === button.dataset.editTransaction);
+        const record = (state.transactions || []).find(t => t.id === button.dataset.editTransaction);
         if (record) openEditModal("transaction", record, state);
       }
 
@@ -1565,25 +1608,25 @@ function bindAppForms() {
         const billId = button.dataset.editBill;
         // Se for instância recorrente, busca o template original
         const realId = billId.startsWith("recur_") ? billId.split("_")[1] : billId;
-        const record = state.bills.find(b => b.id === realId);
+        const record = (state.bills || []).find(b => b.id === realId);
         if (record) openEditModal("bill", record, state);
       }
 
       // Edit event
       if (button.dataset.editEvent) {
-        const record = state.events.find(e => e.id === button.dataset.editEvent);
+        const record = (state.events || []).find(e => e.id === button.dataset.editEvent);
         if (record) openEditModal("event", record, state);
       }
 
       // Edit goal
       if (button.dataset.editGoal) {
-        const record = state.goals.find(g => g.id === button.dataset.editGoal);
+        const record = (state.goals || []).find(g => g.id === button.dataset.editGoal);
         if (record) openEditModal("goal", record, state);
       }
 
       // Edit category
       if (button.dataset.editCategory) {
-        const record = state.categories.find(c => c.id === button.dataset.editCategory);
+        const record = (state.categories || []).find(c => c.id === button.dataset.editCategory);
         if (record) openEditModal("category", record, state);
       }
 
@@ -1606,7 +1649,10 @@ function bindAppForms() {
     } catch (error) {
       showToast(error.message, "error");
     } finally {
-      setLoadingWithFallback(false);
+      // Só esconde o loader se esta operação mostrou o loader
+      if (showedLoader) {
+        setLoadingWithFallback(false);
+      }
     }
   });
 
@@ -1712,6 +1758,84 @@ function boot() {
   if (mobileSidebarToggle) mobileSidebarToggle.addEventListener("click", toggleMobileSidebar);
   if (mobileSidebarClose) mobileSidebarClose.addEventListener("click", toggleMobileSidebar);
   if (sidebarOverlay) sidebarOverlay.addEventListener("click", toggleMobileSidebar);
+
+  // ─── Mobile Bottom Navigation ───
+  const mobileMoreBtn = document.querySelector("#mobileMoreBtn");
+  const mobileMoreMenu = document.querySelector("#mobileMoreMenu");
+  const mobileMoreClose = document.querySelector("#mobileMoreClose");
+
+  if (mobileMoreBtn && mobileMoreMenu) {
+    mobileMoreBtn.addEventListener("click", () => {
+      mobileMoreMenu.classList.toggle("hidden");
+    });
+  }
+  if (mobileMoreClose && mobileMoreMenu) {
+    mobileMoreClose.addEventListener("click", () => {
+      mobileMoreMenu.classList.add("hidden");
+    });
+  }
+  // Close more menu on backdrop click
+  if (mobileMoreMenu) {
+    mobileMoreMenu.addEventListener("click", (e) => {
+      if (e.target === mobileMoreMenu) {
+        mobileMoreMenu.classList.add("hidden");
+      }
+    });
+  }
+  // More menu items navigate to tabs
+  document.querySelectorAll(".mobile-more-menu-item").forEach((item) => {
+    item.addEventListener("click", () => {
+      const tabId = item.dataset.tabTarget;
+      if (tabId) {
+        mobileMoreMenu?.classList.add("hidden");
+        patchState({ activeTab: tabId });
+        switchTab(tabId);
+        const mainShell = document.querySelector(".main-shell");
+        if (mainShell) mainShell.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    });
+  });
+
+  // ─── Mobile Notification Button ───
+  const mobileNotifBtn = document.querySelector("#mobileNotifBtn");
+  const notificationPanel = document.querySelector("#notificationPanel");
+  if (mobileNotifBtn && notificationPanel) {
+    mobileNotifBtn.addEventListener("click", () => {
+      notificationPanel.classList.toggle("hidden");
+      if (!notificationPanel.classList.contains("hidden")) {
+        const mainShell = document.querySelector(".main-shell");
+        if (mainShell) mainShell.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    });
+  }
+
+  // ─── Collapsible Filters (Mobile) ───
+  document.querySelectorAll(".mobile-filter-toggle-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const targetId = btn.dataset.filterTarget;
+      const filterBar = document.querySelector(`#${targetId}`);
+      if (!filterBar) return;
+      const isExpanded = btn.getAttribute("aria-expanded") === "true";
+      btn.setAttribute("aria-expanded", String(!isExpanded));
+      filterBar.classList.toggle("filters-expanded", !isExpanded);
+    });
+  });
+
+  // Reset filter state on viewport resize
+  let resizeTimer;
+  window.addEventListener("resize", () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      if (window.innerWidth > 760) {
+        document.querySelectorAll(".tab-filter-bar").forEach((bar) => {
+          bar.classList.remove("filters-expanded");
+        });
+        document.querySelectorAll(".mobile-filter-toggle-btn").forEach((btn) => {
+          btn.setAttribute("aria-expanded", "false");
+        });
+      }
+    }, 150);
+  });
 
   onAuthStateChange((_event, session) => {
     patchState({ session });

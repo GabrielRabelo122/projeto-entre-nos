@@ -12,7 +12,7 @@
   />
   <link rel="icon" type="image/svg+xml" href="./assets/images/favicon.svg" />
   <link rel="apple-touch-icon" type="image/png" sizes="180x180" href="./assets/images/favicon.png" />
-  <link rel="stylesheet" href="./styles.css?v=20260806k" />
+  <link rel="stylesheet" href="./styles.css?v=20260810a" />
 </head>
 <body>
   <div id="loadingOverlay" class="loading-overlay hidden">
@@ -155,6 +155,7 @@
     <section id="appView" class="app-shell hidden">
       <div id="sidebarOverlay" class="sidebar-overlay"></div>
       <aside class="sidebar">
+        <button id="mobileSidebarClose" class="ghost-button mobile-sidebar-close" type="button" aria-label="Fechar menu">&times;</button>
         <div class="sidebar-brand-logo">
           <img src="./assets/images/logo.png" alt="Entre Nós" class="sidebar-logo" />
         </div>
@@ -243,7 +244,24 @@
       </aside>
 
       <div class="main-shell">
-        <button id="mobileSidebarToggle" class="ghost-button mobile-sidebar-toggle" type="button" aria-label="Abrir menu">&#9776;</button>
+        <!-- Mobile Header Bar -->
+        <header class="mobile-header-bar">
+          <button id="mobileSidebarToggle" class="mobile-header-menu-btn" type="button" aria-label="Abrar menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <div class="mobile-header-title">
+            <strong id="mobileHeaderName">Entre Nós</strong>
+          </div>
+          <div class="mobile-header-actions">
+            <button id="mobileNotifBtn" class="mobile-header-action-btn" type="button" aria-label="Notificações">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+              <span id="mobileNotifDot" class="notification-dot hidden"></span>
+            </button>
+          </div>
+        </header>
+
+        <!-- Legacy toggle (kept for JS compat, hidden on mobile) -->
+        <button id="mobileSidebarToggleLegacy" class="ghost-button mobile-sidebar-toggle" type="button" aria-label="Abrir menu" style="display:none">&#9776;</button>
 
         <section id="notificationPanel" class="notification-panel panel hidden">
           <div class="panel-header compact">
@@ -500,7 +518,12 @@
               </div>
             </div>
 
-            <div class="tab-filter-bar">
+            <div class="tab-filter-bar" id="transactionFilterBar">
+              <button class="mobile-filter-toggle-btn" type="button" data-filter-target="transactionFilterBar" aria-expanded="false">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                Filtros
+                <span class="mobile-filter-chevron">▾</span>
+              </button>
               <label>
                 Ambiente
                 <select id="transactionWorkspaceFilter">
@@ -546,7 +569,12 @@
               </div>
             </div>
 
-            <div class="tab-filter-bar">
+            <div class="tab-filter-bar" id="billFilterBar">
+              <button class="mobile-filter-toggle-btn" type="button" data-filter-target="billFilterBar" aria-expanded="false">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                Filtros
+                <span class="mobile-filter-chevron">▾</span>
+              </button>
               <label>
                 Ambiente
                 <select id="billWorkspaceFilter">
@@ -631,8 +659,7 @@
               <div class="report-scope-group">
                 <label class="report-period-label" for="reportScopeSelect">Escopo</label>
                 <select id="reportScopeSelect" class="report-scope-select">
-                  <option value="workspace" selected>Ambiente</option>
-                  <option value="individual">Individual</option>
+                  <option value="individual" selected>Individual</option>
                 </select>
               </div>
               <div class="report-period-group">
@@ -799,7 +826,12 @@
                 </div>
               </div>
 
-              <div class="tab-filter-bar">
+              <div class="tab-filter-bar" id="goalFilterBar">
+                <button class="mobile-filter-toggle-btn" type="button" data-filter-target="goalFilterBar" aria-expanded="false">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                  Filtros
+                  <span class="mobile-filter-chevron">▾</span>
+                </button>
                 <label>
                   Ambiente
                   <select id="goalWorkspaceFilter">
@@ -977,6 +1009,10 @@
                   <span id="envActiveKind">—</span>
                   <span id="envActiveRole">—</span>
                 </div>
+                <div id="envParticipants" class="env-participants">
+                  <p class="env-participants-title">Participantes</p>
+                  <div id="envParticipantsList" class="env-participants-list"></div>
+                </div>
                 <div class="env-invite-section">
                   <p class="env-step-hint">Código do ambiente (compartilhe para convidar):</p>
                   <div class="env-code-display">
@@ -1070,6 +1106,54 @@
             </article>
           </div>
         </section>
+
+        <!-- Bottom Tab Navigation (Mobile) -->
+        <nav class="mobile-bottom-nav" aria-label="Navegação principal">
+          <button class="mobile-bottom-nav-item active" data-tab-target="dashboardTab" type="button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            <span>Dashboard</span>
+          </button>
+          <button class="mobile-bottom-nav-item" data-tab-target="transactionsTab" type="button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            <span>Finanças</span>
+          </button>
+          <button class="mobile-bottom-nav-item" data-tab-target="accountsTab" type="button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+            <span>Contas</span>
+          </button>
+          <button class="mobile-bottom-nav-item" data-tab-target="agendaTab" type="button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            <span>Agenda</span>
+          </button>
+          <button class="mobile-bottom-nav-item" data-tab-target="settingsTab" type="button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            <span>Config</span>
+          </button>
+          <button class="mobile-bottom-nav-item mobile-bottom-more" id="mobileMoreBtn" type="button" aria-label="Mais opções">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+            <span>Mais</span>
+          </button>
+        </nav>
+
+        <!-- More Menu Overlay (Mobile) -->
+        <div id="mobileMoreMenu" class="mobile-more-menu hidden">
+          <div class="mobile-more-menu-card">
+            <div class="mobile-more-menu-header">
+              <strong>Mais opções</strong>
+              <button id="mobileMoreClose" class="mobile-more-close-btn" type="button" aria-label="Fechar">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <button class="mobile-more-menu-item" data-tab-target="reportsTab" type="button">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              Relatórios
+            </button>
+            <button class="mobile-more-menu-item" data-tab-target="goalsTab" type="button">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+              Metas
+            </button>
+          </div>
+        </div>
       </div>
     </section>
   </main>

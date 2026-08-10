@@ -32,6 +32,19 @@ let calendarDate = new Date();
 let agendaFilter = "all";
 let selectedDay = null;
 
+// Cache para evitar re-criação desnecessária de gráficos
+let _lastChartSignature = null;
+
+function computeChartSignature(scopedTransactions, dashboardFilters) {
+  // Gera uma assinatura simples dos dados para saber se os gráficos precisam ser re-criados
+  const txCount = scopedTransactions.length;
+  const period = dashboardFilters?.period || "30";
+  const owner = dashboardFilters?.ownerProfileId || "";
+  // Usa a soma dos valores como heurística de mudança
+  const totalAmount = scopedTransactions.reduce((s, t) => s + Number(t.amount || 0), 0);
+  return `${txCount}|${period}|${owner}|${totalAmount}`;
+}
+
 const dom = {
   authView: document.querySelector("#authView"),
   appView: document.querySelector("#appView"),
@@ -73,6 +86,7 @@ const dom = {
   transactionScopeSelect: document.querySelector("#transactionScopeSelect"),
   billScopeSelect: document.querySelector("#billScopeSelect"),
   goalScopeSelect: document.querySelector("#goalScopeSelect"),
+  reportScopeSelect: document.querySelector("#reportScopeSelect"),
   transactionCategorySelect: document.querySelector("#transactionCategorySelect"),
   filterCategorySelect: document.querySelector("#filterCategorySelect"),
   transactionGoalSelect: document.querySelector("#transactionGoalSelect"),
@@ -277,6 +291,15 @@ export function populateDynamicOptions(state, dashboardFilters = {}) {
     dom.goalScopeSelect.innerHTML = `<option value="individual">Individual</option>${wsOptions}`;
   }
 
+  // Populate report scope select with workspaces
+  if (dom.reportScopeSelect) {
+    const workspaces = Array.isArray(state.workspaces) ? state.workspaces : [];
+    const wsOptions = workspaces
+      .map((ws) => `<option value="${ws.id}">${ws.name || getWorkspaceKindLabel(ws.kind)}</option>`)
+      .join("");
+    dom.reportScopeSelect.innerHTML = `<option value="individual">Individual</option>${wsOptions}`;
+  }
+
   // Populate bill, goal, and transaction filter selects
   const billWorkspaceFilter = document.querySelector("#billWorkspaceFilter");
   const goalWorkspaceFilter = document.querySelector("#goalWorkspaceFilter");
@@ -295,16 +318,14 @@ export function populateDynamicOptions(state, dashboardFilters = {}) {
   if (billOwnerFilter) billOwnerFilter.innerHTML = `<option value="">Todos</option>${ownerOptions}`;
   if (goalOwnerFilter) goalOwnerFilter.innerHTML = `<option value="">Todos</option>${ownerOptions}`;
 
-  if (state.profile) {
+  if (state.profile && dom.profileForm) {
     if (dom.transactionOwnerSelect) dom.transactionOwnerSelect.value = state.profile.user_id;
     if (dom.billOwnerSelect) dom.billOwnerSelect.value = "";
     if (dom.eventOwnerSelect) dom.eventOwnerSelect.value = "";
     if (dom.dashboardOwnerSelect) dom.dashboardOwnerSelect.value = dashboardFilters.ownerProfileId || "";
-    if (dom.profileForm) {
-      dom.profileForm.fullName.value = state.profile.full_name || "";
-      dom.profileForm.avatarUrl.value = state.profile.avatar_url || "";
-      dom.profileForm.monthlyIncome.value = state.profile.monthly_income || "";
-    }
+    if (dom.profileForm.fullName) dom.profileForm.fullName.value = state.profile.full_name || "";
+    if (dom.profileForm.avatarUrl) dom.profileForm.avatarUrl.value = state.profile.avatar_url || "";
+    if (dom.profileForm.monthlyIncome) dom.profileForm.monthlyIncome.value = state.profile.monthly_income || "";
   }
 }
 
@@ -584,13 +605,24 @@ export function renderSummary(state, dashboardFilters = {}) {
   const periodLabel = getDashboardPeriodLabel(dashboardFilters.period);
   const ownerLabel = getDashboardOwnerLabel(state, dashboardFilters);
 
-  // Personal balance (only the logged-in user's transactions)
+  // Personal balance (logged-in user's transactions across ALL workspaces)
   const profileId = state.profile?.user_id;
-  const personalTransactions = profileId
-    ? scopedTransactions.filter((item) => item.owner_profile_id === profileId)
-    : scopedTransactions;
-  const personalIncomes = personalTransactions.filter((item) => item.type === "income").reduce((sum, item) => sum + Number(item.amount || 0), 0);
-  const personalExpenses = personalTransactions.filter((item) => item.type === "expense").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const allPersonalTx = Array.isArray(state.personalTransactions) && state.personalTransactions.length
+    ? state.personalTransactions
+    : (profileId ? scopedTransactions.filter((item) => item.owner_profile_id === profileId) : scopedTransactions);
+
+  // Aplica filtro de período nas transações pessoais globais
+  const period = dashboardFilters.period || "30";
+  let personalFiltered = allPersonalTx;
+  if (period !== "all") {
+    const startDate = new Date();
+    startDate.setHours(0, 0, 0, 0);
+    startDate.setDate(startDate.getDate() - (Number(period) - 1));
+    personalFiltered = allPersonalTx.filter(t => new Date(`${t.occurred_on}T12:00:00`) >= startDate);
+  }
+
+  const personalIncomes = personalFiltered.filter((item) => item.type === "income").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const personalExpenses = personalFiltered.filter((item) => item.type === "expense").reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const personalBalance = personalIncomes - personalExpenses;
   const personalName = state.profile?.full_name?.split(" ")[0] || "Você";
 
@@ -599,7 +631,7 @@ export function renderSummary(state, dashboardFilters = {}) {
   const groupIncomes = incomes;
   const groupExpenses = expenses;
   const groupLabel = state.couple?.name
-    ? `${getWorkspaceKindLabel(state.couple.kind)} • ${state.couple.name}`
+    ? `${getWorkspaceKindLabel(state.couple?.kind)} • ${state.couple.name}`
     : "Ambiente";
 
   const balanceCards = [
@@ -608,7 +640,7 @@ export function renderSummary(state, dashboardFilters = {}) {
       balance: personalBalance,
       incomes: personalIncomes,
       expenses: personalExpenses,
-      detail: `${ownerLabel} em ${periodLabel}`,
+      detail: `Todos os ambientes em ${periodLabel}`,
       tone: personalBalance >= 0 ? "positive" : "negative"
     },
     {
@@ -616,7 +648,7 @@ export function renderSummary(state, dashboardFilters = {}) {
       balance: groupBalance,
       incomes: groupIncomes,
       expenses: groupExpenses,
-      detail: `Saldo do ${getWorkspaceKindLabel(state.couple?.kind).toLowerCase()} em ${periodLabel}`,
+      detail: `Saldo do ${getWorkspaceKindLabel(state.couple?.kind || "couple").toLowerCase()} em ${periodLabel}`,
       tone: groupBalance >= 0 ? "positive" : "negative"
     }
   ];
@@ -727,11 +759,15 @@ export function renderHeader(state) {
     dom.welcomeTitle.textContent = state.profile ? `Olá, ${state.profile.full_name.split(" ")[0]}` : "Olá";
   }
   if (dom.coupleName) dom.coupleName.textContent = state.couple?.name || "Seu espaço";
+  const mobileHeaderName = document.querySelector("#mobileHeaderName");
+  if (mobileHeaderName) mobileHeaderName.textContent = state.couple?.name || "Entre Nós";
   if (dom.partnerStatus) dom.partnerStatus.textContent = state.couple
-    ? `${members.length} pessoa(s) participando do ambiente ${getWorkspaceKindLabel(state.couple.kind).toLowerCase()}.`
+    ? `${members.length} pessoa(s) participando do ambiente ${getWorkspaceKindLabel(state.couple?.kind || "couple").toLowerCase()}.`
     : "Escolha como quer usar o Entre Nós e crie seu primeiro ambiente.";
   const unreadCount = state.notifications.filter((item) => !item.is_read).length;
   if (dom.notificationDot) dom.notificationDot.classList.toggle("hidden", unreadCount === 0);
+  const mobileNotifDot = document.querySelector("#mobileNotifDot");
+  if (mobileNotifDot) mobileNotifDot.classList.toggle("hidden", unreadCount === 0);
   if (dom.workspaceSetupPanel) dom.workspaceSetupPanel.classList.toggle("hidden", Boolean(state.couple?.id));
 
   // Show/hide leave workspace icon based on active workspace
@@ -858,10 +894,10 @@ export function renderHealth(state) {
 
   // ─── Score Trend Chart ───
   const trendArea = document.querySelector("#healthTrendArea");
-  const trendChart = document.querySelector("#healthTrendChart");
+  const trendChartEl = document.querySelector("#healthTrendChart");
   const scoreDelta = document.querySelector("#healthScoreDelta");
 
-  if (trendArea && trendChart && model.hasData && model.scoreHistory) {
+  if (trendArea && trendChartEl && model.hasData && model.scoreHistory) {
     const history = model.scoreHistory.filter(h => h.score !== null);
     if (history.length >= 2) {
       trendArea.classList.remove("hidden");
@@ -887,7 +923,7 @@ export function renderHealth(state) {
 
       // Render mini bar chart
       const maxScore = 100;
-      trendChart.innerHTML = history.map((h, idx) => {
+      trendChartEl.innerHTML = history.map((h, idx) => {
         const heightPct = Math.max((h.score / maxScore) * 100, 4);
         const isLast = idx === history.length - 1;
         let barColor;
@@ -904,7 +940,7 @@ export function renderHealth(state) {
 
       // Animate bars growing
       requestAnimationFrame(() => {
-        const bars = trendChart.querySelectorAll(".health-trend-bar");
+        const bars = trendChartEl.querySelectorAll(".health-trend-bar");
         bars.forEach((bar, i) => {
           const targetHeight = bar.style.height;
           bar.style.height = "0%";
@@ -1040,6 +1076,12 @@ function getTrendSeries(transactions, period) {
 
 export function renderCharts(state, dashboardFilters = {}) {
   const scopedTransactions = getDashboardScopedTransactions(state, dashboardFilters);
+
+  // Otimização: só re-cria gráficos se os dados mudaram
+  const currentSignature = computeChartSignature(scopedTransactions, dashboardFilters);
+  if (currentSignature === _lastChartSignature) return;
+  _lastChartSignature = currentSignature;
+
   const distribution = getExpenseDistribution({ ...state, transactions: scopedTransactions });
   const trend = getTrendSeries(scopedTransactions, dashboardFilters.period || "30");
   const computedStyles = getComputedStyle(document.documentElement);
@@ -1335,13 +1377,17 @@ export function renderWorkspaces(state) {
   // Fallback: se workspaces está vazio mas state.couple existe (o usuário está em um ambiente
   // carregado pelo bootstrap), constrói um workspace sintético para não mostrar "nenhum ambiente".
   if (workspaces.length === 0 && state.couple?.id) {
+    // Busca o código de convite pendente a partir dos invites carregados pelo bootstrap
+    const fallbackInviteCode = Array.isArray(state.invites)
+      ? (state.invites.find(i => i.status === 'pending' && i.couple_id === state.couple.id)?.invite_code || null)
+      : null;
     workspaces = [{
       id: state.couple.id,
       name: state.couple.name || "Sem nome",
       kind: state.couple.kind || "couple",
       role: "owner",
       is_active: true,
-      invite_code: null
+      invite_code: fallbackInviteCode
     }];
   }
 
@@ -1371,19 +1417,42 @@ export function renderWorkspaces(state) {
             : "Membro";
       }
       if (codeEl) {
-        // Usa o código gerado no state como fallback se o invite_code não estiver disponível
-        const displayCode = activeWorkspace.invite_code || state.generatedInviteCode || "—";
+        // Sempre usa o invite_code do workspace ativo (fonte confiável do backend)
+        // Evita usar state.generatedInviteCode que é global e pode pertencer a outro workspace
+        const displayCode = activeWorkspace.invite_code || "—";
         codeEl.textContent = displayCode;
       }
       const generateBtn = document.getElementById("envGenerateCodeBtn");
       if (generateBtn) {
-        const hasCode = activeWorkspace.invite_code || state.generatedInviteCode;
-        generateBtn.classList.toggle("hidden", !!hasCode);
+        const hasCode = !!activeWorkspace.invite_code;
+        generateBtn.classList.toggle("hidden", hasCode);
       }
       const copyBtn = document.getElementById("envCopyCodeBtn");
       if (copyBtn) {
-        const hasCode = activeWorkspace.invite_code || state.generatedInviteCode;
+        const hasCode = !!activeWorkspace.invite_code;
         copyBtn.classList.toggle("hidden", !hasCode);
+      }
+
+      // Render workspace participants
+      const participantsEl = document.getElementById("envParticipants");
+      const participantsListEl = document.getElementById("envParticipantsList");
+      if (participantsEl && participantsListEl) {
+        const members = getPeople(state);
+        if (members.length > 0) {
+          participantsEl.classList.remove("hidden");
+          participantsListEl.innerHTML = members.map((member) => {
+            const isMe = member.user_id === state.profile?.user_id;
+            const initials = member.full_name ? member.full_name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) : "?";
+            return `
+              <div class="env-participant-item">
+                <span class="env-participant-avatar${isMe ? ' env-participant-avatar-me' : ''}">${member.avatar_url ? `<img src="${member.avatar_url}" alt="" />` : initials}</span>
+                <span class="env-participant-name">${member.full_name || "Usuário"}${isMe ? ' <em>(você)</em>' : ''}</span>
+              </div>
+            `;
+          }).join("");
+        } else {
+          participantsEl.classList.add("hidden");
+        }
       }
     }
     if (envNoWorkspace) envNoWorkspace.classList.add("hidden");
@@ -1479,48 +1548,38 @@ export function renderEvents(state) {
 
   const content = filteredEvents.length ? filteredEvents.map((item) => {
     const scope = item.scope || (item.owner_profile_id ? "individual" : "group");
-    // Check if scope is a workspace ID
     const workspace = scope !== "individual" && scope !== "group" 
       ? state.workspaces?.find(ws => ws.id === scope) 
       : null;
     const scopeClass = workspace ? "event-workspace" : scope === "group" ? "event-group" : "event-individual";
     const scopeLabel = workspace ? workspace.name || getWorkspaceKindLabel(workspace.kind) : scope === "group" ? (state.couple?.name || getWorkspaceKindLabel(state.couple?.kind) || "Em conjunto") : "Individual";
-    const kindIcon = item.kind === "task" ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>' : item.kind === "reminder" ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>' : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
-    const kindClass = item.kind === "task" ? "event-icon-task" : item.kind === "reminder" ? "event-icon-reminder" : "event-icon-event";
     const kindLabel = item.kind === "task" ? "Tarefa" : item.kind === "reminder" ? "Lembrete" : "Evento";
     const doneClass = item.is_done ? "event-done" : "";
-    const statusClass = item.is_done ? "status-done" : "status-pending";
-    const statusIcon = item.is_done ? "✓" : "○";
-    const statusLabel = item.is_done ? "Realizado" : "Pendente";
-    const toggleLabel = item.is_done ? "Realizado" : "Marcar como feito";
+    const toggleLabel = item.is_done ? "Feito" : "Marcar como feito";
     const dateLabel = formatDateLabel(item.due_date);
     const titleClass = item.is_done ? "event-title-done" : "";
     return `
     <article class="list-card event-card ${scopeClass} ${doneClass}">
-      <div class="event-card-header">
-        <div class="event-type-icon ${kindClass}">${kindIcon}</div>
-        <div class="event-card-title">
-          <strong class="${titleClass}">${item.title}</strong>
-          <span class="event-date-label">${dateLabel}</span>
+      <div class="event-card-row-main">
+        <button class="event-toggle-check ${item.is_done ? 'is-checked' : ''}" type="button" data-toggle-event="${item.id}" data-current-done="${!!item.is_done}" title="${toggleLabel}">
+          ${item.is_done ? '✓' : ''}
+        </button>
+        <div class="event-card-info">
+          <div class="event-card-top">
+            <strong class="event-card-name ${titleClass}">${item.title}</strong>
+            <span class="event-card-date">${dateLabel}</span>
+          </div>
+          <div class="event-card-tags">
+            <span class="event-tag event-tag-scope ${scopeClass}">${scopeLabel}</span>
+            <span class="event-tag event-tag-kind">${kindLabel}</span>
+            ${item.owner?.full_name ? `<span class="event-tag event-tag-owner">${item.owner.full_name}</span>` : ""}
+          </div>
         </div>
-        <span class="event-status-indicator ${statusClass}" title="${statusLabel}">${statusIcon}</span>
       </div>
-      <div class="event-card-body">
-        <span class="event-meta-chip">${kindLabel}</span>
-        <span class="event-scope-badge ${scopeClass}">${scopeLabel}</span>
-        <span class="event-status-chip ${statusClass}">${statusIcon} ${statusLabel}</span>
-        ${item.owner?.full_name ? `<span class="event-meta-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>${item.owner.full_name}</span>` : ""}
-      </div>
-      ${item.note ? `<div class="event-note-text ${item.is_done ? 'event-note-done' : ''}">${item.note}</div>` : ""}
-      <div class="event-card-actions">
-        <button class="event-done-btn ${item.is_done ? 'is-done' : ''}" type="button" data-toggle-event="${item.id}" data-current-done="${!!item.is_done}">
-          <span class="event-done-btn-icon">${item.is_done ? '✓' : '○'}</span>
-          ${toggleLabel}
-        </button>
-        <button class="secondary-button action-button" data-edit-event="${item.id}" type="button">Editar</button>
-        <button class="ghost-button action-button event-delete-btn" data-delete-event="${item.id}" type="button" title="Excluir compromisso">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
-        </button>
+      ${item.note ? `<p class="event-card-note ${item.is_done ? 'event-note-done' : ''}">${item.note}</p>` : ""}
+      <div class="event-card-actions-compact">
+        <button class="event-action-link" data-edit-event="${item.id}" type="button">Editar</button>
+        <button class="event-action-link event-action-delete" data-delete-event="${item.id}" type="button" title="Excluir">Excluir</button>
       </div>
     </article>
   `;}).join("") : emptyStateMessage("Nada na agenda ainda", "Crie seu primeiro compromisso, tarefa ou lembrete.");
@@ -1629,40 +1688,30 @@ function renderDayDetail(dateStr, dayEvents) {
 
   const eventsHTML = dayEvents.map((item) => {
     const scope = item.scope || (item.owner_profile_id ? "individual" : "group");
-    // Check if scope is a workspace ID
     const workspace = scope !== "individual" && scope !== "group" 
       ? state.workspaces?.find(ws => ws.id === scope) 
       : null;
     const scopeClass = workspace ? "event-workspace" : scope === "group" ? "event-group" : "event-individual";
     const scopeLabel = workspace ? workspace.name || getWorkspaceKindLabel(workspace.kind) : scope === "group" ? (state.couple?.name || getWorkspaceKindLabel(state.couple?.kind) || "Em conjunto") : "Individual";
-    const kindIcon = item.kind === "task" ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>' : item.kind === "reminder" ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>' : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
-    const kindClass = item.kind === "task" ? "event-icon-task" : item.kind === "reminder" ? "event-icon-reminder" : "event-icon-event";
     const kindLabel = item.kind === "task" ? "Tarefa" : item.kind === "reminder" ? "Lembrete" : "Evento";
-    const statusClass = item.is_done ? "status-done" : "status-pending";
-    const statusIcon = item.is_done ? "✓" : "○";
-    const statusLabel = item.is_done ? "Realizado" : "Pendente";
     const doneClass = item.is_done ? "event-done" : "";
     const titleClass = item.is_done ? "event-title-done" : "";
     return `
       <article class="calendar-day-event event-card ${scopeClass} ${doneClass}">
-        <div class="event-card-header">
-          <div class="event-type-icon ${kindClass}">${kindIcon}</div>
-          <div class="event-card-title">
-            <strong class="${titleClass}">${item.title}</strong>
+        <div class="event-card-row-main">
+          <span class="event-card-scope-dot ${scopeClass}"></span>
+          <div class="event-card-info">
+            <div class="event-card-top">
+              <strong class="event-card-name ${titleClass}">${item.title}</strong>
+              <span class="event-tag event-tag-kind">${kindLabel}</span>
+            </div>
+            <div class="event-card-tags">
+              <span class="event-tag event-tag-scope ${scopeClass}">${scopeLabel}</span>
+              ${item.owner?.full_name ? `<span class="event-tag event-tag-owner">${item.owner.full_name}</span>` : ""}
+            </div>
           </div>
         </div>
-        <div class="event-card-body">
-          <span class="event-meta-chip">${kindLabel}</span>
-          <span class="event-scope-badge ${scopeClass}">${scopeLabel}</span>
-          <span class="event-status-chip ${statusClass}">${statusIcon} ${statusLabel}</span>
-          ${item.owner?.full_name ? `<span class="event-meta-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>${item.owner.full_name}</span>` : ""}
-        </div>
-        ${item.note ? `<div class="event-note-text ${item.is_done ? 'event-note-done' : ''}">${item.note}</div>` : ""}
-        <div class="event-card-actions">
-          <button class="ghost-button action-button event-delete-btn" data-delete-event="${item.id}" type="button" title="Excluir compromisso">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path></svg>
-          </button>
-        </div>
+        ${item.note ? `<p class="event-card-note ${item.is_done ? 'event-note-done' : ''}">${item.note}</p>` : ""}
       </article>
     `;
   }).join('');
@@ -2143,21 +2192,27 @@ export function renderReports(state, reportConfig = {}) {
   const period = reportConfig.period || "month";
   const customStart = reportConfig.customStart || "";
   const customEnd = reportConfig.customEnd || "";
-  const scope = reportConfig.scope || "workspace";
+  const scope = reportConfig.scope || "individual";
 
   const { start, end } = getReportDateRange(period, customStart, customEnd);
   let filtered = getFilteredTransactions(state.transactions, start, end);
 
-  // Filter by scope: "individual" shows only the logged-in user's transactions
+  // Filter by scope
+  let scopeLabel = "Ambiente";
   if (scope === "individual") {
     const profileId = state.profile?.user_id;
     if (profileId) {
       filtered = filtered.filter(t => t.owner_profile_id === profileId);
     }
+    scopeLabel = "Individual";
+  } else if (scope && scope !== "workspace") {
+    // scope is a specific workspace ID — filter by couple_id
+    filtered = filtered.filter(t => t.couple_id === scope);
+    const ws = state.workspaces?.find(w => w.id === scope);
+    scopeLabel = ws ? (ws.name || getWorkspaceKindLabel(ws.kind)) : "Ambiente";
   }
 
   const periodLabel = getReportPeriodLabel(period, start, end);
-  const scopeLabel = scope === "individual" ? "Individual" : "Ambiente";
 
   const titles = {
     general: "Resumo geral", period: "Relatório por período",

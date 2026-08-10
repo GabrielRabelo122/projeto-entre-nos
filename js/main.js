@@ -407,6 +407,17 @@ function refreshApp({ silent = false, sessionOverride, force = false } = {}) {
         ...data
       });
 
+      // Diagnóstico: verificar se os dados carregaram corretamente
+      console.info(
+        `[Entre Nós] Dados carregados:`,
+        `transações=${(data.transactions || []).length},`,
+        `contas=${(data.bills || []).length},`,
+        `metas=${(data.goals || []).length},`,
+        `eventos=${(data.events || []).length},`,
+        `ambiente=${data.couple?.name || 'nenhum'},`,
+        `active_couple_id=${data.profile?.active_couple_id || data.profile?.couple_id || 'null'}`
+      );
+
       setAuthMode(true);
       renderEverything(state, transactionFilters, dashboardFilters, reportConfig, billFilters, goalFilters);
     } catch (error) {

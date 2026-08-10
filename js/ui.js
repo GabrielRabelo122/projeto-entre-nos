@@ -404,9 +404,9 @@ function getHealthModel(state) {
   const clamp = (val, min, max) => Math.max(min, Math.min(max, val));
 
   if (hasData) {
-    // Factor 1: Income vs Expense ratio — continuous ±25 points
-    const ratio = incomes > 0 ? ((incomes - expenses) / incomes) : (expenses > 0 ? -1 : 0);
-    const ratioScore = clamp(ratio / 0.5, -1, 1) * 25;
+    // Factor 1: Income vs Expense ratio — continuous ±20 points
+    const ratio = incomes > 0 ? ((incomes - expenses) / incomes) : (expenses > 0 ? -0.8 : 0);
+    const ratioScore = clamp(ratio / 0.5, -1, 1) * 20;
     score += ratioScore;
     if (ratio > 0.3) {
       factors.push({ type: "positive", text: "Entradas superam saídas com boa margem." });
@@ -425,10 +425,10 @@ function getHealthModel(state) {
       criteria.push({ name: "Entradas vs Saídas", points: Math.round(ratioScore), icon: healthIcons.wallet, detail: `Déficit de ${Math.round(Math.abs(ratio) * 100)}%` });
     }
 
-    // Factor 2: Current month spending vs income — continuous ±15 points
+    // Factor 2: Current month spending vs income — continuous ±10 points
     if (monthIncomes > 0) {
       const monthRatio = (monthIncomes - monthExpenses) / monthIncomes;
-      const monthScore = clamp(monthRatio / 0.4, -1, 1) * 15;
+      const monthScore = clamp(monthRatio / 0.4, -1, 1) * 10;
       score += monthScore;
       if (monthRatio < -0.1) {
         factors.push({ type: "warning", text: "Este mês as saídas ultrapassaram as entradas." });
@@ -440,34 +440,34 @@ function getHealthModel(state) {
         criteria.push({ name: "Mês corrente", points: Math.round(monthScore), icon: healthIcons.calendar, detail: `Margem de ${Math.round(monthRatio * 100)}% este mês` });
       }
     } else if (monthExpenses > 0) {
-      score -= 15;
+      score -= 10;
       factors.push({ type: "warning", text: "Este mês teve apenas saídas, sem entradas." });
-      criteria.push({ name: "Mês corrente", points: -15, icon: healthIcons.calendar, detail: "Apenas saídas neste mês" });
+      criteria.push({ name: "Mês corrente", points: -10, icon: healthIcons.calendar, detail: "Apenas saídas neste mês" });
     }
 
-    // Factor 3: Bills near due date — proportional penalty up to -15 points
+    // Factor 3: Bills near due date — proportional penalty up to -10 points
     if (dueSoon.length > 0) {
-      const penalty = Math.min(dueSoon.length * 5, 15);
+      const penalty = Math.min(dueSoon.length * 3, 10);
       score -= penalty;
       factors.push({ type: "warning", text: `${dueSoon.length} conta(s) vencendo em breve.` });
-      criteria.push({ name: "Contas a vencer", points: -penalty, icon: healthIcons.file, detail: `${dueSoon.length} conta(s) próximas do vencimento` });
+      criteria.push({ name: "Contas a vencer", points: -penalty, icon: healthIcons.file, detail: `${dueSoon.length} conta(s) próxima(s) do vencimento` });
     } else {
       score += 5;
       factors.push({ type: "positive", text: "Nenhuma conta próxima do vencimento." });
       criteria.push({ name: "Contas a vencer", points: +5, icon: healthIcons.file, detail: "Nenhuma conta próxima" });
     }
 
-    // Factor 4: Overdue bills — proportional penalty up to -15 points
+    // Factor 4: Overdue bills — proportional penalty up to -10 points
     if (overdueBills.length > 0) {
-      const penalty = Math.min(overdueBills.length * 8, 15);
+      const penalty = Math.min(overdueBills.length * 5, 10);
       score -= penalty;
       factors.push({ type: "warning", text: `${overdueBills.length} conta(s) em atraso.` });
       criteria.push({ name: "Contas em atraso", points: -penalty, icon: healthIcons.alert, detail: `${overdueBills.length} conta(s) vencida(s)` });
     }
 
-    // Factor 5: High expense alerts — proportional penalty up to -10 points
+    // Factor 5: High expense alerts — proportional penalty up to -5 points
     if (highExpenseCount > 0) {
-      const penalty = Math.min(highExpenseCount * 5, 10);
+      const penalty = Math.min(highExpenseCount * 3, 5);
       score -= penalty;
       factors.push({ type: "warning", text: "Gastos elevados fora do padrão detectados." });
       criteria.push({ name: "Gastos elevados", points: -penalty, icon: healthIcons.chart, detail: `${highExpenseCount} alerta(s) de gasto fora do padrão` });
@@ -509,7 +509,8 @@ function getHealthModel(state) {
     factors.push({ type: "neutral", text: "Sem movimentações registradas ainda." });
   }
 
-  score = Math.round(Math.max(Math.min(score, 100), 0));
+  // Garante mínimo de 5% quando há dados (evita score 0% com atividade financeira)
+  score = Math.round(Math.max(Math.min(score, 100), 5));
 
   // Classification
   let classification, emoji;
@@ -563,9 +564,9 @@ function computeScoreForPeriod(transactions, bills, goals, events, startDate, en
 
   let score = 50;
 
-  // Factor 1: continuous ratio score ±25
-  const ratio = incomes > 0 ? ((incomes - expenses) / incomes) : (expenses > 0 ? -1 : 0);
-  score += clamp(ratio / 0.5, -1, 1) * 25;
+  // Factor 1: continuous ratio score ±20
+  const ratio = incomes > 0 ? ((incomes - expenses) / incomes) : (expenses > 0 ? -0.8 : 0);
+  score += clamp(ratio / 0.5, -1, 1) * 20;
 
   // Factor 3: bills due soon
   const dueSoon = periodBills.filter(b => {
@@ -573,14 +574,14 @@ function computeScoreForPeriod(transactions, bills, goals, events, startDate, en
     const diff = Math.ceil((due - new Date()) / 86400000);
     return !b.is_paid && diff >= 0 && diff <= APP_CONFIG.billWarningDays;
   });
-  if (dueSoon.length > 0) score -= Math.min(dueSoon.length * 5, 15);
+  if (dueSoon.length > 0) score -= Math.min(dueSoon.length * 3, 10);
   else score += 5;
 
   // Factor 4: overdue bills
   const overdue = periodBills.filter(b => !b.is_paid && b.due_date < endDate.toISOString().slice(0, 10));
-  if (overdue.length > 0) score -= Math.min(overdue.length * 8, 15);
+  if (overdue.length > 0) score -= Math.min(overdue.length * 5, 10);
 
-  return Math.round(Math.max(Math.min(score, 100), 0));
+  return Math.round(Math.max(Math.min(score, 100), 5));
 }
 
 function computeScoreHistory(transactions, bills, goals, events, state) {
@@ -656,6 +657,15 @@ export function renderSummary(state, dashboardFilters = {}) {
   const extraCards = [
     { label: "Metas em andamento", value: `${state.goals.length}`, detail: `${fmtCurrency.format(totalGoals)} acumulados` }
   ];
+
+  // Se não há movimentações no período, adiciona card de orientação
+  if (!scopedTransactions.length) {
+    extraCards.push({
+      label: "Movimentações",
+      value: "0",
+      detail: `Nenhuma transação em ${periodLabel}. Registre sua primeira!`
+    });
+  }
 
   const balanceHTML = balanceCards.map((card) => `
     <article class="summary-card balance-card">
@@ -856,7 +866,10 @@ export function renderHealth(state) {
 
   // Update bar color based on classification
   if (dom.healthGaugeFill) {
-    if (model.score >= 70) {
+    if (!model.hasData) {
+      dom.healthGaugeFill.style.width = "0%";
+      dom.healthGaugeFill.style.background = "transparent";
+    } else if (model.score >= 70) {
       dom.healthGaugeFill.style.background = "linear-gradient(90deg, #22c55e, #3b82f6)";
     } else if (model.score >= 40) {
       dom.healthGaugeFill.style.background = "linear-gradient(90deg, #f59e0b, #fbbf24)";

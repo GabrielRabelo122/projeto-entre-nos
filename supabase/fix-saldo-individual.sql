@@ -156,11 +156,14 @@ begin
           'amount', t.amount, 'type', t.type, 'occurred_on', t.occurred_on,
           'category_id', t.category_id,
           'category', case when c.id is null then null
-            else jsonb_build_object('id', c.id, 'name', c.name, 'icon', c.icon, 'kind', c.kind) end
+            else jsonb_build_object('id', c.id, 'name', c.name, 'icon', c.icon, 'kind', c.kind) end,
+          'owner', case when o.user_id is null then null
+            else jsonb_build_object('user_id', o.user_id, 'full_name', o.full_name) end
         )
       )
       from public.transactions t
       left join public.categories c on c.id = t.category_id
+      left join public.profiles o on o.user_id = t.owner_profile_id
       where t.owner_profile_id = v_user_id
         and t.couple_id in (
           select wm.couple_id from public.workspace_members wm where wm.user_id = v_user_id

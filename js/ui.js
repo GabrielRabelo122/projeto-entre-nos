@@ -108,6 +108,27 @@ function getPeople(state) {
   return state.members?.length ? state.members : [state.profile, state.partner].filter(Boolean);
 }
 
+/**
+ * Resolve o nome do proprietário de uma transação usando múltiplas fontes.
+ * Evita que apareça "Desconhecido" quando o campo owner não veio da API
+ * (ex: personal_transactions não inclui owner, ou perfil sem full_name).
+ */
+function resolveOwnerName(transaction, state) {
+  // 1. Tenta o campo owner embutido na transação
+  if (transaction.owner?.full_name) return transaction.owner.full_name;
+  // 2. Busca em state.members pelo owner_profile_id
+  const ownerId = transaction.owner_profile_id;
+  if (ownerId) {
+    const member = (state.members || []).find(m => m.user_id === ownerId);
+    if (member?.full_name) return member.full_name;
+    // 3. Tenta o próprio perfil do usuário logado
+    if (state.profile?.user_id === ownerId && state.profile.full_name) return state.profile.full_name;
+    // 4. Tenta o parceiro
+    if (state.partner?.user_id === ownerId && state.partner.full_name) return state.partner.full_name;
+  }
+  return "Desconhecido";
+}
+
 function formatDateLabel(dateValue, fallback = "Sem data definida") {
   if (!dateValue) return fallback;
   return fmtDate.format(new Date(`${dateValue}T12:00:00`));
@@ -1051,7 +1072,7 @@ function getExpenseDistribution(state) {
   const expenses = (state.transactions || []).filter((t) => t.type === "expense");
   const byPerson = {};
   for (const t of expenses) {
-    const name = t.owner?.full_name || "Desconhecido";
+    const name = resolveOwnerName(t, state);
     byPerson[name] = (byPerson[name] || 0) + Number(t.amount || 0);
   }
   return Object.entries(byPerson)
@@ -2061,7 +2082,7 @@ function generateByGroupReport(state, transactions) {
   const total = expenses.reduce((s, t) => s + Number(t.amount || 0), 0);
   const byPerson = {};
   for (const t of expenses) {
-    const name = t.owner?.full_name || "Desconhecido";
+    const name = resolveOwnerName(t, state);
     byPerson[name] = (byPerson[name] || 0) + Number(t.amount || 0);
   }
   const sorted = Object.entries(byPerson).sort((a, b) => b[1] - a[1]);
@@ -2292,7 +2313,7 @@ function renderReportCharts(state, transactions, reportType, startDate, endDate)
   const c1 = document.querySelector("#reportChart1");
   if (c1 && (reportType === "by_category" || reportType === "by_group")) {
     const expenses = transactions.filter(t => t.type === "expense");
-    const key = reportType === "by_category" ? (t => t.category?.name || "Sem categoria") : (t => t.owner?.full_name || "Desconhecido");
+    const key = reportType === "by_category" ? (t => t.category?.name || "Sem categoria") : (t => resolveOwnerName(t, state));
     const grouped = {};
     for (const t of expenses) { const k = key(t); grouped[k] = (grouped[k] || 0) + Number(t.amount || 0); }
     const sorted = Object.entries(grouped).sort((a, b) => b[1] - a[1]);
@@ -2879,7 +2900,7 @@ export function exportToCSV(state, reportConfig = {}) {
     t.type === "income" ? "Receita" : "Despesa",
     Number(t.amount || 0).toFixed(2),
     `"${(t.category?.name || "").replace(/"/g, '""')}"`,
-    `"${(t.owner?.full_name || "").replace(/"/g, '""')}"`,
+    `"${(resolveOwnerName(t, state) || "").replace(/"/g, '""')}"`,
     getScopeLabel(t.split_scope, state),
     `"${(t.goal?.name || "").replace(/"/g, '""')}"`,
     `"${(t.note || "").replace(/"/g, '""')}"`

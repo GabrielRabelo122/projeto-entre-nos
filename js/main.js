@@ -188,6 +188,7 @@ function parseMoneyInput(text) {
 /**
  * Inicializa o sistema de valor inteligente em todos os inputs [data-money]
  * dentro do escopo informado (ou document inteiro).
+ * - Formata automaticamente enquanto digita (acumulando centavos)
  * - Formata automaticamente ao sair do campo (blur)
  * - Seleciona todo o conteúdo ao focar
  */
@@ -213,17 +214,21 @@ function initMoneyInputs(scope) {
       }
     });
 
-    // Permite apenas dígitos, vírgula e ponto enquanto digita
+    // Formata como moeda em tempo real enquanto digita
     input.addEventListener("input", () => {
-      let val = input.value;
-      // Remove tudo que não é dígito, vírgula ou ponto
-      val = val.replace(/[^0-9.,]/g, "");
-      // Garante no máximo uma vírgula
-      const parts = val.split(",");
-      if (parts.length > 2) {
-        val = parts[0] + "," + parts.slice(1).join("");
+      // Extrai apenas os dígitos do valor
+      let digits = input.value.replace(/\D/g, "");
+      if (!digits) {
+        input.value = "";
+        return;
       }
-      input.value = val;
+      // Remove zeros à esquerda (exceto se for o único dígito)
+      digits = digits.replace(/^0+(?=\d)/, "");
+      // Converte para centavos (os dígitos representam centavos acumulados)
+      const cents = parseInt(digits, 10) || 0;
+      const value = cents / 100;
+      // Formata como moeda brasileira
+      input.value = value.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     });
   });
 }
@@ -999,6 +1004,14 @@ function bindAppForms() {
     const form = event.currentTarget;
     try {
       const formData = formDataToObject(form);
+
+      // Confirmação ao criar meta de forma individual
+      if (formData.scope === "individual") {
+        const confirmed = window.confirm(
+          "Tem certeza que deseja criar esta meta de forma individual?\n\nSe for assim, não vinculará a nenhum ambiente/grupo de pessoas."
+        );
+        if (!confirmed) return;
+      }
       
       // Atualização otimista: cria localmente e renderiza imediatamente
       const localGoal = {
@@ -1035,15 +1048,25 @@ function bindAppForms() {
     event.preventDefault();
     const form = event.currentTarget;
     try {
-      const formData = await resolveWorkspaceScope(formDataToObject(form));
-      const selectedCategory = (state.categories || []).find((category) => category.id === formData.categoryId);
-      if (selectedCategory?.kind === "reserve" && !formData.goalId) {
+      const formData = formDataToObject(form);
+
+      // Confirmação ao lançar transação de forma individual
+      if (formData.splitScope === "self") {
+        const confirmed = window.confirm(
+          "Tem certeza que deseja lançar esta transação de forma individual?\n\nSe for assim, não vinculará a nenhum ambiente/grupo de pessoas."
+        );
+        if (!confirmed) return;
+      }
+
+      const resolvedData = await resolveWorkspaceScope(formData);
+      const selectedCategory = (state.categories || []).find((category) => category.id === resolvedData.categoryId);
+      if (selectedCategory?.kind === "reserve" && !resolvedData.goalId) {
         throw new Error("Ao usar categoria de reserva, escolha uma meta para receber o aporte automático.");
       }
       
       // Atualização otimista: cria localmente e renderiza imediatamente
       const localTransaction = {
-        ...formData,
+        ...resolvedData,
         amount: Number(formData.amount) || 0,
         occurred_on: formData.occurredOn || new Date().toISOString().slice(0, 10),
         owner_profile_id: formData.ownerProfileId || state.profile?.id,
@@ -1051,14 +1074,12 @@ function bindAppForms() {
         _optimistic: true
       };
       
-      const typeLabel = formData.type === "income" ? "Receita" : "Despesa";
-      
       await optimisticCreate({
-        createFn: () => createTransaction(formData),
+        createFn: () => createTransaction(resolvedData),
         localItem: localTransaction,
         stateKey: "transactions",
         onSuccess: () => {
-          showToast(`${typeLabel} lançada com sucesso.`, "success");
+          showToast(`${resolvedData.type === "income" ? "Receita" : "Despesa"} lançada com sucesso.`, "success");
           resetForm(form);
           resetDatedForms();
         },
@@ -1077,11 +1098,21 @@ function bindAppForms() {
     event.preventDefault();
     const form = event.currentTarget;
     try {
-      const formData = await resolveWorkspaceScope(formDataToObject(form));
+      const formData = formDataToObject(form);
+
+      // Confirmação ao lançar conta de forma individual
+      if (formData.splitScope === "self") {
+        const confirmed = window.confirm(
+          "Tem certeza que deseja lançar esta conta de forma individual?\n\nSe for assim, não vinculará a nenhum ambiente/grupo de pessoas."
+        );
+        if (!confirmed) return;
+      }
+
+      const resolvedData = await resolveWorkspaceScope(formData);
       
       // Atualização otimista: cria localmente e renderiza imediatamente
       const localBill = {
-        ...formData,
+        ...resolvedData,
         amount: Number(formData.amount) || 0,
         due_date: formData.dueDate,
         owner_profile_id: formData.ownerProfileId || state.profile?.id,
@@ -1090,7 +1121,7 @@ function bindAppForms() {
       };
       
       await optimisticCreate({
-        createFn: () => createBill(formData),
+        createFn: () => createBill(resolvedData),
         localItem: localBill,
         stateKey: "bills",
         onSuccess: () => {

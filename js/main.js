@@ -657,10 +657,15 @@ function bindAppForms() {
   const darkModeToggle = document.querySelector("#darkModeToggle");
   const darkModeLabel = document.querySelector("#darkModeLabel");
   const savedTheme = localStorage.getItem("entre-nos-theme");
-  if (savedTheme === "dark") {
+  // Dark mode é o padrão — só usa light se o usuário escolheu explicitamente
+  if (savedTheme !== "light") {
     document.documentElement.setAttribute("data-theme", "dark");
     document.body.setAttribute("data-theme", "dark");
     if (darkModeLabel) darkModeLabel.textContent = "Modo claro";
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+    document.body.removeAttribute("data-theme");
+    if (darkModeLabel) darkModeLabel.textContent = "Modo escuro";
   }
   if (darkModeToggle) {
     darkModeToggle.addEventListener("click", () => {

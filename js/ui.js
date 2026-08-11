@@ -1125,6 +1125,13 @@ export function renderCharts(state, dashboardFilters = {}) {
   const borderColor = computedStyles.getPropertyValue("--border").trim() || "#e2e8f0";
   const textColor = computedStyles.getPropertyValue("--text").trim() || "#0f172a";
   const mutedColor = computedStyles.getPropertyValue("--muted").trim() || "#64748b";
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const gridColor = isDark ? "rgba(148,163,184,0.12)" : "rgba(226,232,240,0.5)";
+  const chartBorderColor = isDark ? "#0f172a" : "#fff";
+  const dashboardPalette = [
+    accentColor, incomeColor, expenseColor, "#94a3b8", "#f59e0b",
+    "#8b5cf6", "#14b8a6", "#ec4899", "#f97316", "#06b6d4"
+  ];
 
   if (expenseChart) { expenseChart.destroy(); expenseChart = null; }
   if (trendChart) { trendChart.destroy(); trendChart = null; }
@@ -1144,8 +1151,8 @@ export function renderCharts(state, dashboardFilters = {}) {
       labels: distributionLabels,
       datasets: [{
         data: distributionData,
-        backgroundColor: [accentColor, incomeColor, expenseColor, "#94a3b8", "#f59e0b"],
-        borderColor: "#fff",
+        backgroundColor: dashboardPalette.slice(0, distributionData.length),
+        borderColor: chartBorderColor,
         borderWidth: 2,
         hoverOffset: 6
       }]
@@ -1194,7 +1201,7 @@ export function renderCharts(state, dashboardFilters = {}) {
     options: {
       maintainAspectRatio: false,
       scales: {
-        x: { ticks: { color: mutedColor, font: { size: 10 } }, grid: { color: "rgba(226,232,240,0.5)" } },
+        x: { ticks: { color: mutedColor, font: { size: 10 } }, grid: { color: gridColor } },
         y: {
           ticks: {
             color: mutedColor,
@@ -1203,7 +1210,7 @@ export function renderCharts(state, dashboardFilters = {}) {
               return fmtCurrency.format(Number(value || 0));
             }
           },
-          grid: { color: "rgba(226,232,240,0.5)" }
+          grid: { color: gridColor }
         }
       },
       plugins: {
@@ -1588,32 +1595,36 @@ export function renderEvents(state) {
     const scopeClass = workspace ? "event-workspace" : scope === "group" ? "event-group" : "event-individual";
     const scopeLabel = workspace ? workspace.name || getWorkspaceKindLabel(workspace.kind) : scope === "group" ? (state.couple?.name || getWorkspaceKindLabel(state.couple?.kind) || "Em conjunto") : "Individual";
     const kindLabel = item.kind === "task" ? "Tarefa" : item.kind === "reminder" ? "Lembrete" : "Evento";
+    const kindIcon = item.kind === "task" ? "✓" : item.kind === "reminder" ? "●" : "◆";
     const doneClass = item.is_done ? "event-done" : "";
     const toggleLabel = item.is_done ? "Feito" : "Marcar como feito";
     const dateLabel = formatDateLabel(item.due_date);
     const titleClass = item.is_done ? "event-title-done" : "";
     return `
-    <article class="list-card event-card ${scopeClass} ${doneClass}">
-      <div class="event-card-row-main">
-        <button class="event-toggle-check ${item.is_done ? 'is-checked' : ''}" type="button" data-toggle-event="${item.id}" data-current-done="${!!item.is_done}" title="${toggleLabel}">
-          ${item.is_done ? '✓' : ''}
-        </button>
-        <div class="event-card-info">
-          <div class="event-card-top">
-            <strong class="event-card-name ${titleClass}">${item.title}</strong>
-            <span class="event-card-date">${dateLabel}</span>
-          </div>
-          <div class="event-card-tags">
-            <span class="event-tag event-tag-scope ${scopeClass}">${scopeLabel}</span>
-            <span class="event-tag event-tag-kind">${kindLabel}</span>
-            ${item.owner?.full_name ? `<span class="event-tag event-tag-owner">${item.owner.full_name}</span>` : ""}
+    <article class="event-card ${scopeClass} ${doneClass}">
+      <div class="event-card-accent"></div>
+      <div class="event-card-body">
+        <div class="event-card-row-main">
+          <button class="event-toggle-check ${item.is_done ? 'is-checked' : ''}" type="button" data-toggle-event="${item.id}" data-current-done="${!!item.is_done}" title="${toggleLabel}">
+            ${item.is_done ? '✓' : ''}
+          </button>
+          <div class="event-card-info">
+            <div class="event-card-top">
+              <strong class="event-card-name ${titleClass}">${item.title}</strong>
+              <span class="event-card-date">${dateLabel}</span>
+            </div>
+            <div class="event-card-meta">
+              <span class="event-meta-scope ${scopeClass}">${scopeLabel}</span>
+              <span class="event-meta-kind">${kindIcon} ${kindLabel}</span>
+              ${item.owner?.full_name ? `<span class="event-meta-owner">${item.owner.full_name}</span>` : ""}
+            </div>
           </div>
         </div>
-      </div>
-      ${item.note ? `<p class="event-card-note ${item.is_done ? 'event-note-done' : ''}">${item.note}</p>` : ""}
-      <div class="event-card-actions-compact">
-        <button class="event-action-link" data-edit-event="${item.id}" type="button">Editar</button>
-        <button class="event-action-link event-action-delete" data-delete-event="${item.id}" type="button" title="Excluir">Excluir</button>
+        ${item.note ? `<p class="event-card-note ${item.is_done ? 'event-note-done' : ''}">${item.note}</p>` : ""}
+        <div class="event-card-actions">
+          <button class="event-action-btn" data-edit-event="${item.id}" type="button">Editar</button>
+          <button class="event-action-btn event-action-delete" data-delete-event="${item.id}" type="button">Excluir</button>
+        </div>
       </div>
     </article>
   `;}).join("") : emptyStateMessage("Nada na agenda ainda", "Crie seu primeiro compromisso, tarefa ou lembrete.");
@@ -1728,24 +1739,27 @@ function renderDayDetail(dateStr, dayEvents) {
     const scopeClass = workspace ? "event-workspace" : scope === "group" ? "event-group" : "event-individual";
     const scopeLabel = workspace ? workspace.name || getWorkspaceKindLabel(workspace.kind) : scope === "group" ? (state.couple?.name || getWorkspaceKindLabel(state.couple?.kind) || "Em conjunto") : "Individual";
     const kindLabel = item.kind === "task" ? "Tarefa" : item.kind === "reminder" ? "Lembrete" : "Evento";
+    const kindIcon = item.kind === "task" ? "✓" : item.kind === "reminder" ? "●" : "◆";
     const doneClass = item.is_done ? "event-done" : "";
     const titleClass = item.is_done ? "event-title-done" : "";
     return `
       <article class="calendar-day-event event-card ${scopeClass} ${doneClass}">
-        <div class="event-card-row-main">
-          <span class="event-card-scope-dot ${scopeClass}"></span>
-          <div class="event-card-info">
-            <div class="event-card-top">
-              <strong class="event-card-name ${titleClass}">${item.title}</strong>
-              <span class="event-tag event-tag-kind">${kindLabel}</span>
-            </div>
-            <div class="event-card-tags">
-              <span class="event-tag event-tag-scope ${scopeClass}">${scopeLabel}</span>
-              ${item.owner?.full_name ? `<span class="event-tag event-tag-owner">${item.owner.full_name}</span>` : ""}
+        <div class="event-card-accent"></div>
+        <div class="event-card-body">
+          <div class="event-card-row-main">
+            <div class="event-card-info">
+              <div class="event-card-top">
+                <strong class="event-card-name ${titleClass}">${item.title}</strong>
+              </div>
+              <div class="event-card-meta">
+                <span class="event-meta-scope ${scopeClass}">${scopeLabel}</span>
+                <span class="event-meta-kind">${kindIcon} ${kindLabel}</span>
+                ${item.owner?.full_name ? `<span class="event-meta-owner">${item.owner.full_name}</span>` : ""}
+              </div>
             </div>
           </div>
+          ${item.note ? `<p class="event-card-note ${item.is_done ? 'event-note-done' : ''}">${item.note}</p>` : ""}
         </div>
-        ${item.note ? `<p class="event-card-note ${item.is_done ? 'event-note-done' : ''}">${item.note}</p>` : ""}
       </article>
     `;
   }).join('');
@@ -2304,6 +2318,9 @@ function renderReportCharts(state, transactions, reportType, startDate, endDate)
   const accentColor = cs.getPropertyValue("--accent").trim() || "#3b82f6";
   const textColor = cs.getPropertyValue("--text").trim() || "#0f172a";
   const mutedColor = cs.getPropertyValue("--muted").trim() || "#64748b";
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  const gridColor = isDark ? "rgba(148,163,184,0.12)" : "rgba(226,232,240,0.5)";
+  const chartBorderColor = isDark ? "#0f172a" : "#fff";
   const palette = [accentColor, incomeColor, expenseColor, "#94a3b8", "#f59e0b", "#8b5cf6", "#14b8a6", "#ec4899", "#f97316", "#06b6d4"];
 
   const legendOpts = { position: "bottom", labels: { color: textColor, usePointStyle: true, boxWidth: 8, padding: 14, font: { size: 11 } } };
@@ -2320,7 +2337,7 @@ function renderReportCharts(state, transactions, reportType, startDate, endDate)
     if (sorted.length) {
       reportCharts.push(new window.Chart(c1, {
         type: "doughnut",
-        data: { labels: sorted.map(([l]) => l), datasets: [{ data: sorted.map(([, v]) => v), backgroundColor: palette.slice(0, sorted.length), borderColor: "#fff", borderWidth: 2, hoverOffset: 6 }] },
+        data: { labels: sorted.map(([l]) => l), datasets: [{ data: sorted.map(([, v]) => v), backgroundColor: palette.slice(0, sorted.length), borderColor: chartBorderColor, borderWidth: 2, hoverOffset: 6 }] },
         options: { cutout: "65%", maintainAspectRatio: false, plugins: { legend: legendOpts, tooltip: tooltipCurrency } }
       }));
     }
@@ -2344,7 +2361,7 @@ function renderReportCharts(state, transactions, reportType, startDate, endDate)
           { label: "Despesas", data: [f1.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount || 0), 0), f2.filter(t => t.type === "expense").reduce((s, t) => s + Number(t.amount || 0), 0)], backgroundColor: expenseColor, borderRadius: 6 }
         ]
       },
-      options: { maintainAspectRatio: false, plugins: { legend: legendOpts, tooltip: tooltipCurrency }, scales: { y: { ticks: { color: mutedColor, font: { size: 10 }, callback(v) { return fmtCurrency.format(v); } }, grid: { color: "rgba(226,232,240,0.5)" } }, x: { ticks: { color: mutedColor, font: { size: 10 } }, grid: { display: false } } } }
+      options: { maintainAspectRatio: false, plugins: { legend: legendOpts, tooltip: tooltipCurrency }, scales: { y: { ticks: { color: mutedColor, font: { size: 10 }, callback(v) { return fmtCurrency.format(v); } }, grid: { color: gridColor } }, x: { ticks: { color: mutedColor, font: { size: 10 } }, grid: { display: false } } } }
     }));
   }
 
@@ -2355,7 +2372,7 @@ function renderReportCharts(state, transactions, reportType, startDate, endDate)
     reportCharts.push(new window.Chart(c1, {
       type: "bar",
       data: { labels: ["Receitas", "Despesas", "Saldo"], datasets: [{ data: [inc, exp, inc - exp], backgroundColor: [incomeColor, expenseColor, (inc - exp) >= 0 ? incomeColor : expenseColor], borderRadius: 8 }] },
-      options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: tooltipCurrency }, scales: { y: { ticks: { color: mutedColor, font: { size: 10 }, callback(v) { return fmtCurrency.format(v); } }, grid: { color: "rgba(226,232,240,0.5)" } }, x: { ticks: { color: mutedColor, font: { size: 11 } }, grid: { display: false } } } }
+      options: { maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: tooltipCurrency }, scales: { y: { ticks: { color: mutedColor, font: { size: 10 }, callback(v) { return fmtCurrency.format(v); } }, grid: { color: gridColor } }, x: { ticks: { color: mutedColor, font: { size: 11 } }, grid: { display: false } } } }
     }));
   }
 
@@ -2368,7 +2385,7 @@ function renderReportCharts(state, transactions, reportType, startDate, endDate)
     if (sorted.length) {
       reportCharts.push(new window.Chart(c1, {
         type: "doughnut",
-        data: { labels: sorted.map(([l]) => l), datasets: [{ data: sorted.map(([, v]) => v), backgroundColor: palette.slice(0, sorted.length), borderColor: "#fff", borderWidth: 2, hoverOffset: 6 }] },
+        data: { labels: sorted.map(([l]) => l), datasets: [{ data: sorted.map(([, v]) => v), backgroundColor: palette.slice(0, sorted.length), borderColor: chartBorderColor, borderWidth: 2, hoverOffset: 6 }] },
         options: { cutout: "65%", maintainAspectRatio: false, plugins: { legend: legendOpts, tooltip: tooltipCurrency } }
       }));
     }
@@ -2397,7 +2414,7 @@ function renderReportCharts(state, transactions, reportType, startDate, endDate)
               { label: "Despesas", data: series.map(s => s.expense), borderColor: expenseColor, backgroundColor: "rgba(239,68,68,0.06)", pointBackgroundColor: expenseColor, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2, fill: true, tension: 0.35 }
             ]
           },
-          options: { maintainAspectRatio: false, scales: { x: { ticks: { color: mutedColor, font: { size: 10 } }, grid: { color: "rgba(226,232,240,0.5)" } }, y: { ticks: { color: mutedColor, font: { size: 10 }, callback(v) { return fmtCurrency.format(v); } }, grid: { color: "rgba(226,232,240,0.5)" } } }, plugins: { legend: legendOpts, tooltip: tooltipCurrency } }
+          options: { maintainAspectRatio: false, scales: { x: { ticks: { color: mutedColor, font: { size: 10 } }, grid: { color: gridColor } }, y: { ticks: { color: mutedColor, font: { size: 10 }, callback(v) { return fmtCurrency.format(v); } }, grid: { color: gridColor } } }, plugins: { legend: legendOpts, tooltip: tooltipCurrency } }
         }));
       }
     }
@@ -2427,7 +2444,7 @@ function renderReportCharts(state, transactions, reportType, startDate, endDate)
             { label: "Despesas", data: series.map(s => s.expense), borderColor: expenseColor, backgroundColor: "rgba(239,68,68,0.06)", pointBackgroundColor: expenseColor, pointRadius: 3, pointHoverRadius: 5, borderWidth: 2, fill: true, tension: 0.35 }
           ]
         },
-        options: { maintainAspectRatio: false, scales: { x: { ticks: { color: mutedColor, font: { size: 10 } }, grid: { color: "rgba(226,232,240,0.5)" } }, y: { ticks: { color: mutedColor, font: { size: 10 }, callback(v) { return fmtCurrency.format(v); } }, grid: { color: "rgba(226,232,240,0.5)" } } }, plugins: { legend: legendOpts, tooltip: tooltipCurrency } }
+        options: { maintainAspectRatio: false, scales: { x: { ticks: { color: mutedColor, font: { size: 10 } }, grid: { color: gridColor } }, y: { ticks: { color: mutedColor, font: { size: 10 }, callback(v) { return fmtCurrency.format(v); } }, grid: { color: gridColor } } }, plugins: { legend: legendOpts, tooltip: tooltipCurrency } }
       }));
 
       const c2 = document.querySelector("#reportChart2");
@@ -2435,7 +2452,7 @@ function renderReportCharts(state, transactions, reportType, startDate, endDate)
         reportCharts.push(new window.Chart(c2, {
           type: "bar",
           data: { labels: series.map(s => s.label), datasets: [{ label: "Saldo", data: series.map(s => s.balance), backgroundColor: series.map(s => s.balance >= 0 ? incomeColor : expenseColor), borderRadius: 6 }] },
-          options: { maintainAspectRatio: false, indexAxis: series.length > 8 ? "y" : "x", plugins: { legend: { display: false }, tooltip: tooltipCurrency }, scales: { y: { ticks: { color: mutedColor, font: { size: 10 } }, grid: { display: false } }, x: { ticks: { color: mutedColor, font: { size: 10 }, callback(v) { return fmtCurrency.format(v); } }, grid: { color: "rgba(226,232,240,0.5)" } } } }
+          options: { maintainAspectRatio: false, indexAxis: series.length > 8 ? "y" : "x", plugins: { legend: { display: false }, tooltip: tooltipCurrency }, scales: { y: { ticks: { color: mutedColor, font: { size: 10 } }, grid: { display: false } }, x: { ticks: { color: mutedColor, font: { size: 10 }, callback(v) { return fmtCurrency.format(v); } }, grid: { color: gridColor } } } }
         }));
       }
     }

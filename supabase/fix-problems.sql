@@ -273,7 +273,7 @@ begin
     v_kind := 'transaction_deleted';
     v_title := 'Transação removida';
     v_message := v_actor_name || ' removeu uma transação em ' || coalesce(v_workspace_name, 'um ambiente') || ': ' || old.description || ' — ' || v_amount_text;
-    perform public.notify_workspace_members(old.couple_id, old.user_id, v_kind, v_title, v_message, p_transaction_id => old.id);
+    perform public.notify_workspace_members(old.couple_id, old.user_id, v_kind, v_title, v_message);
   end if;
 
   return coalesce(new, old);
@@ -315,7 +315,7 @@ begin
     v_kind := 'bill_deleted';
     v_title := 'Conta removida';
     v_message := v_actor_name || ' removeu a conta em ' || coalesce(v_workspace_name, 'um ambiente') || ': ' || old.title;
-    perform public.notify_workspace_members(old.couple_id, v_actor_user_id, v_kind, v_title, v_message, p_bill_id => old.id);
+    perform public.notify_workspace_members(old.couple_id, v_actor_user_id, v_kind, v_title, v_message);
   end if;
 
   return coalesce(new, old);

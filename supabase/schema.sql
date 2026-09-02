@@ -352,6 +352,21 @@ create table if not exists public.plans (
   updated_at timestamptz not null default timezone('utc', now())
 );
 
+create table if not exists public.category_limits (
+  id uuid primary key default gen_random_uuid(),
+  couple_id uuid not null default public.get_my_couple_id() references public.couples(id) on delete cascade,
+  category_id uuid not null references public.categories(id) on delete cascade,
+  limit_amount numeric(12,2) not null check (limit_amount > 0),
+  period_type text not null default 'monthly' check (period_type in ('weekly', 'monthly', 'yearly', 'custom')),
+  custom_start_day integer check (custom_start_day >= 1 and custom_start_day <= 31),
+  alert_threshold numeric(5,2) not null default 80 check (alert_threshold >= 1 and alert_threshold <= 100),
+  is_active boolean not null default true,
+  created_by uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  unique (couple_id, category_id, period_type)
+);
+
 create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
   couple_id uuid not null default public.get_my_couple_id() references public.couples(id) on delete cascade,
@@ -369,6 +384,18 @@ create table if not exists public.notifications (
 create unique index if not exists notifications_unique_due_bill
   on public.notifications (user_id, bill_id, kind)
   where kind = 'bill_due_soon';
+
+-- Tabela para registrar pagamentos de instâncias de contas recorrentes
+create table if not exists public.bill_recurring_payments (
+  id uuid primary key default gen_random_uuid(),
+  bill_id uuid not null references public.bills(id) on delete cascade,
+  due_month text not null, -- formato: YYYY-MM
+  is_paid boolean not null default false,
+  paid_at timestamptz,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  unique (bill_id, due_month)
+);
 
 create or replace function public.bootstrap_default_categories(p_couple_id uuid, p_created_by uuid)
 returns void
@@ -720,6 +747,217 @@ begin
 end;
 $$;
 
+-- ═══════════════════════════════════════════════════════════════
+-- ─── Função para calcular gasto total por categoria no período ───
+-- ═══════════════════════════════════════════════════════════════
+
+create or replace function public.get_category_spending(
+  p_category_id uuid,
+  p_period_type text default 'monthly',
+  p_custom_start_day integer default null
+)
+returns numeric(12,2)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_start_date date;
+  v_end_date date;
+  v_total numeric(12,2);
+  v_today date := current_date;
+begin
+  case p_period_type
+    when 'weekly' then
+      v_start_date := v_today - (extract(dow from v_today)::integer + 6) % 7;
+      v_end_date := v_start_date + 6;
+    when 'monthly' then
+      v_start_date := date_trunc('month', v_today)::date;
+      v_end_date := (v_start_date + interval '1 month - 1 day')::date;
+    when 'yearly' then
+      v_start_date := date_trunc('year', v_today)::date;
+      v_end_date := (v_start_date + interval '1 year - 1 day')::date;
+    when 'custom' then
+      v_start_date := make_date(extract(year from v_today)::int, extract(month from v_today)::int, coalesce(p_custom_start_day, 1));
+      if v_start_date > v_today then
+        v_start_date := v_start_date - interval '1 month';
+      end if;
+      v_end_date := (v_start_date + interval '1 month - 1 day')::date;
+    else
+      v_start_date := date_trunc('month', v_today)::date;
+      v_end_date := (v_start_date + interval '1 month - 1 day')::date;
+  end case;
+
+  select coalesce(sum(t.amount), 0)
+  into v_total
+  from public.transactions t
+  where t.category_id = p_category_id
+    and t.type = 'expense'
+    and t.occurred_on between v_start_date and v_end_date;
+
+  return v_total;
+end;
+$$;
+
+grant execute on function public.get_category_spending(uuid, text, integer) to authenticated;
+
+-- ═══════════════════════════════════════════════════════════════
+-- ─── Trigger: notifica quando categoria ultrapassa o limite ───
+-- ═══════════════════════════════════════════════════════════════
+
+create or replace function public.check_category_limit_notification()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_limit record;
+  v_spending numeric(12,2);
+  v_category_name text;
+  v_percentage numeric;
+  v_partner record;
+  v_owner_name text;
+begin
+  if new.type <> 'expense' or new.category_id is null then
+    return new;
+  end if;
+
+  select * into v_limit
+  from public.category_limits
+  where category_id = new.category_id
+    and couple_id = new.couple_id
+    and is_active = true
+  limit 1;
+
+  if v_limit.id is null then
+    return new;
+  end if;
+
+  v_spending := public.get_category_spending(
+    new.category_id, v_limit.period_type, v_limit.custom_start_day
+  );
+
+  select name into v_category_name from public.categories where id = new.category_id;
+  v_percentage := (v_spending / v_limit.limit_amount) * 100;
+  select full_name into v_owner_name from public.profiles where user_id = new.owner_profile_id;
+
+  if v_percentage >= 100 then
+    for v_partner in
+      select user_id from public.workspace_members wm
+      where wm.couple_id = new.couple_id and wm.user_id <> new.owner_profile_id
+    loop
+      insert into public.notifications (
+        couple_id, user_id, actor_user_id, kind, title, message, transaction_id
+      ) values (
+        new.couple_id, v_partner.user_id, new.owner_profile_id,
+        'category_limit_exceeded',
+        'Limite de categoria ultrapassado',
+        coalesce(v_owner_name, 'Alguém') || ' registrou "' || new.description || '" na categoria ' || v_category_name || '. O gasto de R$ ' || trim(to_char(v_spending, 'FM999999990.00')) || ' ultrapassou o limite de R$ ' || trim(to_char(v_limit.limit_amount, 'FM999999990.00')) || '.',
+        new.id
+      ) on conflict do nothing;
+    end loop;
+
+    insert into public.notifications (
+      couple_id, user_id, actor_user_id, kind, title, message, transaction_id
+    ) values (
+      new.couple_id, new.owner_profile_id, new.owner_profile_id,
+      'category_limit_exceeded',
+      'Você ultrapassou o limite da categoria',
+      'Sua transação "' || new.description || '" na categoria ' || v_category_name || ' fez o gasto ultrapassar o limite de R$ ' || trim(to_char(v_limit.limit_amount, 'FM999999990.00')) || '. Gasto atual: R$ ' || trim(to_char(v_spending, 'FM999999990.00')) || '.',
+      new.id
+    ) on conflict do nothing;
+
+  elsif v_percentage >= v_limit.alert_threshold then
+    for v_partner in
+      select user_id from public.workspace_members wm
+      where wm.couple_id = new.couple_id and wm.user_id <> new.owner_profile_id
+    loop
+      insert into public.notifications (
+        couple_id, user_id, actor_user_id, kind, title, message, transaction_id
+      ) values (
+        new.couple_id, v_partner.user_id, new.owner_profile_id,
+        'category_limit_warning',
+        'Categoria perto do limite',
+        'O gasto na categoria ' || v_category_name || ' atingiu ' || trim(to_char(v_percentage, 'FM990.0')) || '% do limite. Gasto atual: R$ ' || trim(to_char(v_spending, 'FM999999990.00')) || ' de R$ ' || trim(to_char(v_limit.limit_amount, 'FM999999990.00')) || '.',
+        new.id
+      ) on conflict do nothing;
+    end loop;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists transactions_check_category_limit on public.transactions;
+create trigger transactions_check_category_limit
+after insert on public.transactions
+for each row execute function public.check_category_limit_notification();
+
+-- ═══════════════════════════════════════════════════════════════
+-- ─── Função para buscar limites com status de gasto ───
+-- ═══════════════════════════════════════════════════════════════
+
+create or replace function public.get_category_limits_with_status()
+returns table (
+  id uuid,
+  couple_id uuid,
+  category_id uuid,
+  limit_amount numeric,
+  period_type text,
+  custom_start_day integer,
+  alert_threshold numeric,
+  is_active boolean,
+  created_at timestamptz,
+  updated_at timestamptz,
+  category_name text,
+  category_icon text,
+  current_spending numeric,
+  spending_percentage numeric,
+  remaining_amount numeric,
+  status text
+)
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_couple_id uuid := public.get_my_couple_id();
+begin
+  return query
+  select
+    cl.id, cl.couple_id, cl.category_id, cl.limit_amount, cl.period_type,
+    cl.custom_start_day, cl.alert_threshold, cl.is_active, cl.created_at, cl.updated_at,
+    c.name as category_name, c.icon as category_icon,
+    public.get_category_spending(cl.category_id, cl.period_type, cl.custom_start_day) as current_spending,
+    case
+      when cl.limit_amount > 0 then
+        (public.get_category_spending(cl.category_id, cl.period_type, cl.custom_start_day) / cl.limit_amount) * 100
+      else 0
+    end as spending_percentage,
+    greatest(cl.limit_amount - public.get_category_spending(cl.category_id, cl.period_type, cl.custom_start_day), 0) as remaining_amount,
+    case
+      when public.get_category_spending(cl.category_id, cl.period_type, cl.custom_start_day) >= cl.limit_amount then 'exceeded'
+      when public.get_category_spending(cl.category_id, cl.period_type, cl.custom_start_day) >= (cl.limit_amount * cl.alert_threshold / 100) then 'warning'
+      else 'ok'
+    end as status
+  from public.category_limits cl
+  join public.categories c on c.id = cl.category_id
+  where cl.couple_id = v_couple_id
+  order by
+    case
+      when public.get_category_spending(cl.category_id, cl.period_type, cl.custom_start_day) >= cl.limit_amount then 1
+      when public.get_category_spending(cl.category_id, cl.period_type, cl.custom_start_day) >= (cl.limit_amount * cl.alert_threshold / 100) then 2
+      else 3
+    end,
+    c.name asc;
+end;
+$$;
+
+grant execute on function public.get_category_limits_with_status() to authenticated;
+
 create or replace function public.notify_high_expense()
 returns trigger
 language plpgsql
@@ -799,6 +1037,56 @@ begin
 end;
 $$;
 
+-- Function para buscar pagamentos de contas recorrentes
+create or replace function public.get_recurring_bill_payments(p_bill_ids uuid[])
+returns table (
+  bill_id uuid,
+  due_month text,
+  is_paid boolean,
+  paid_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_bill_ids is null or array_length(p_bill_ids, 1) is null then
+    return;
+  end if;
+  
+  return query
+  select brp.bill_id, brp.due_month, brp.is_paid, brp.paid_at
+  from public.bill_recurring_payments brp
+  where brp.bill_id = any(p_bill_ids);
+end;
+$$;
+
+-- Function para registrar/atualizar pagamento de instância recorrente
+create or replace function public.upsert_recurring_bill_payment(
+  p_bill_id uuid,
+  p_due_month text,
+  p_is_paid boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.bill_recurring_payments (bill_id, due_month, is_paid, paid_at)
+  values (
+    p_bill_id,
+    p_due_month,
+    p_is_paid,
+    case when p_is_paid then timezone('utc', now()) else null end
+  )
+  on conflict (bill_id, due_month) do update
+  set is_paid = p_is_paid,
+      paid_at = case when p_is_paid then timezone('utc', now()) else null end,
+      updated_at = timezone('utc', now());
+end;
+$$;
+
 create or replace function public.get_app_bootstrap(p_days_ahead integer default 3)
 returns jsonb
 language plpgsql
@@ -825,6 +1113,7 @@ begin
       'bills', '[]'::jsonb,
       'events', '[]'::jsonb,
       'plans', '[]'::jsonb,
+      'category_limits', '[]'::jsonb,
       'notifications', '[]'::jsonb
     );
   end if;
@@ -848,6 +1137,7 @@ begin
       'bills', '[]'::jsonb,
       'events', '[]'::jsonb,
       'plans', '[]'::jsonb,
+      'category_limits', '[]'::jsonb,
       'notifications', '[]'::jsonb
     );
   end if;
@@ -1023,6 +1313,40 @@ begin
         limit 25
       ) n
     ), '[]'::jsonb),
+    'category_limits', coalesce((
+      select jsonb_agg(
+        jsonb_build_object(
+          'id', cl.id,
+          'couple_id', cl.couple_id,
+          'category_id', cl.category_id,
+          'limit_amount', cl.limit_amount,
+          'period_type', cl.period_type,
+          'custom_start_day', cl.custom_start_day,
+          'alert_threshold', cl.alert_threshold,
+          'is_active', cl.is_active,
+          'created_at', cl.created_at,
+          'updated_at', cl.updated_at,
+          'category_name', c.name,
+          'category_icon', c.icon,
+          'current_spending', public.get_category_spending(cl.category_id, cl.period_type, cl.custom_start_day),
+          'spending_percentage', case
+            when cl.limit_amount > 0 then
+              (public.get_category_spending(cl.category_id, cl.period_type, cl.custom_start_day) / cl.limit_amount) * 100
+            else 0
+          end,
+          'remaining_amount', greatest(cl.limit_amount - public.get_category_spending(cl.category_id, cl.period_type, cl.custom_start_day), 0),
+          'status', case
+            when public.get_category_spending(cl.category_id, cl.period_type, cl.custom_start_day) >= cl.limit_amount then 'exceeded'
+            when public.get_category_spending(cl.category_id, cl.period_type, cl.custom_start_day) >= (cl.limit_amount * cl.alert_threshold / 100) then 'warning'
+            else 'ok'
+          end
+        )
+        order by c.name asc
+      )
+      from public.category_limits cl
+      join public.categories c on c.id = cl.category_id
+      where cl.couple_id = v_active_couple_id
+    ), '[]'::jsonb),
     'personal_transactions', coalesce((
       select jsonb_agg(
         jsonb_build_object(
@@ -1065,6 +1389,8 @@ grant execute on function public.create_couple_invite(text) to authenticated;
 grant execute on function public.accept_couple_invite(text) to authenticated;
 grant execute on function public.unlink_from_couple() to authenticated;
 grant execute on function public.sync_due_bill_notifications(integer) to authenticated;
+grant execute on function public.get_recurring_bill_payments(uuid[]) to authenticated;
+grant execute on function public.upsert_recurring_bill_payment(uuid, text, boolean) to authenticated;
 
 drop trigger if exists couples_touch_updated_at on public.couples;
 create trigger couples_touch_updated_at
@@ -1101,6 +1427,16 @@ create trigger plans_touch_updated_at
 before update on public.plans
 for each row execute function public.touch_updated_at();
 
+drop trigger if exists category_limits_touch_updated_at on public.category_limits;
+create trigger category_limits_touch_updated_at
+before update on public.category_limits
+for each row execute function public.touch_updated_at();
+
+drop trigger if exists bill_recurring_payments_touch_updated_at on public.bill_recurring_payments;
+create trigger bill_recurring_payments_touch_updated_at
+before update on public.bill_recurring_payments
+for each row execute function public.touch_updated_at();
+
 drop trigger if exists transactions_validate_integrity on public.transactions;
 create trigger transactions_validate_integrity
 before insert or update on public.transactions
@@ -1131,6 +1467,7 @@ alter table public.transactions enable row level security;
 alter table public.bills enable row level security;
 alter table public.events enable row level security;
 alter table public.plans enable row level security;
+alter table public.category_limits enable row level security;
 alter table public.notifications enable row level security;
 
 drop policy if exists "couples_select_own" on public.couples;
@@ -1252,6 +1589,13 @@ for all
 using (public.is_in_my_couple(couple_id))
 with check (public.is_in_my_couple(couple_id));
 
+drop policy if exists "category_limits_all_my_couple" on public.category_limits;
+create policy "category_limits_all_my_couple"
+on public.category_limits
+for all
+using (public.is_in_my_couple(couple_id))
+with check (public.is_in_my_couple(couple_id));
+
 drop policy if exists "notifications_select_own" on public.notifications;
 create policy "notifications_select_own"
 on public.notifications
@@ -1264,6 +1608,64 @@ on public.notifications
 for update
 using (user_id = auth.uid())
 with check (user_id = auth.uid());
+
+-- RLS para bill_recurring_payments
+alter table public.bill_recurring_payments enable row level security;
+
+drop policy if exists "bill_recurring_payments_select" on public.bill_recurring_payments;
+create policy "bill_recurring_payments_select"
+on public.bill_recurring_payments
+for select
+using (
+  exists (
+    select 1 from public.bills b
+    where b.id = bill_id
+    and public.is_in_my_couple(b.couple_id)
+  )
+);
+
+drop policy if exists "bill_recurring_payments_insert" on public.bill_recurring_payments;
+create policy "bill_recurring_payments_insert"
+on public.bill_recurring_payments
+for insert
+with check (
+  exists (
+    select 1 from public.bills b
+    where b.id = bill_id
+    and public.is_in_my_couple(b.couple_id)
+  )
+);
+
+drop policy if exists "bill_recurring_payments_update" on public.bill_recurring_payments;
+create policy "bill_recurring_payments_update"
+on public.bill_recurring_payments
+for update
+using (
+  exists (
+    select 1 from public.bills b
+    where b.id = bill_id
+    and public.is_in_my_couple(b.couple_id)
+  )
+)
+with check (
+  exists (
+    select 1 from public.bills b
+    where b.id = bill_id
+    and public.is_in_my_couple(b.couple_id)
+  )
+);
+
+drop policy if exists "bill_recurring_payments_delete" on public.bill_recurring_payments;
+create policy "bill_recurring_payments_delete"
+on public.bill_recurring_payments
+for delete
+using (
+  exists (
+    select 1 from public.bills b
+    where b.id = bill_id
+    and public.is_in_my_couple(b.couple_id)
+  )
+);
 
 -- ═══════════════════════════════════════════════════════════════
 -- ─── Notificações automáticas para mudanças no ambiente ───
@@ -1336,7 +1738,7 @@ begin
     v_kind := 'transaction_deleted';
     v_title := 'Transação removida';
     v_message := v_actor_name || ' removeu uma transação em ' || coalesce(v_workspace_name, 'um ambiente') || ': ' || old.description || ' — ' || v_amount_text;
-    perform public.notify_workspace_members(old.couple_id, old.user_id, v_kind, v_title, v_message, p_transaction_id => old.id);
+    perform public.notify_workspace_members(old.couple_id, old.user_id, v_kind, v_title, v_message);
   end if;
 
   return coalesce(new, old);
@@ -1377,7 +1779,7 @@ begin
     v_kind := 'bill_deleted';
     v_title := 'Conta removida';
     v_message := v_actor_name || ' removeu a conta em ' || coalesce(v_workspace_name, 'um ambiente') || ': ' || old.title;
-    perform public.notify_workspace_members(old.couple_id, v_actor_user_id, v_kind, v_title, v_message, p_bill_id => old.id);
+    perform public.notify_workspace_members(old.couple_id, v_actor_user_id, v_kind, v_title, v_message);
   end if;
 
   return coalesce(new, old);

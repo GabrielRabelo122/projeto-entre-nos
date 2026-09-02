@@ -2915,6 +2915,172 @@ canvas {
   gap: 10px;
 }
 
+/* ─── Category Limits ─── */
+.limit-card {
+  padding: 14px 16px;
+  border-left: 3px solid var(--border, #e2e8f0);
+  transition: border-color 0.2s;
+}
+
+.limit-card.limit-ok {
+  border-left-color: var(--success, #22c55e);
+}
+
+.limit-card.limit-warning {
+  border-left-color: var(--warning, #f59e0b);
+}
+
+.limit-card.limit-exceeded {
+  border-left-color: var(--danger, #ef4444);
+}
+
+.limit-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.limit-card-info strong {
+  font-size: 0.95rem;
+}
+
+.limit-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.limit-period-badge {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-alt, #f1f5f9);
+  color: var(--muted, #64748b);
+  font-weight: 500;
+}
+
+.limit-status-badge {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.limit-status-badge.limit-ok {
+  background: rgba(34, 197, 94, 0.1);
+  color: var(--success, #22c55e);
+}
+
+.limit-status-badge.limit-warning {
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--warning, #f59e0b);
+}
+
+.limit-status-badge.limit-exceeded {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger, #ef4444);
+}
+
+.limit-inactive-badge {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.1);
+  color: var(--muted, #64748b);
+  font-weight: 500;
+}
+
+.limit-card-amount {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.limit-spent {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.limit-separator {
+  color: var(--muted, #64748b);
+  margin: 0 2px;
+}
+
+.limit-total {
+  color: var(--muted, #64748b);
+  font-size: 0.85rem;
+}
+
+.limit-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-alt, #e2e8f0);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.limit-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.limit-progress-fill.limit-ok {
+  background: var(--success, #22c55e);
+}
+
+.limit-progress-fill.limit-warning {
+  background: var(--warning, #f59e0b);
+}
+
+.limit-progress-fill.limit-exceeded {
+  background: var(--danger, #ef4444);
+}
+
+.limit-card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+}
+
+.limit-card-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.limit-card-actions .action-button {
+  font-size: 0.72rem;
+  padding: 4px 10px;
+}
+
+.limit-report-badge {
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-weight: 600;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.limit-report-badge.limit-ok {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--success, #22c55e);
+}
+
+.limit-report-badge.limit-warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning, #f59e0b);
+}
+
+.limit-report-badge.limit-exceeded {
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--danger, #ef4444);
+}
+
 /* ─── Agenda ─── */
 .agenda-layout {
   display: grid;
@@ -4662,6 +4828,24 @@ canvas {
   color: var(--accent);
 }
 
+.report-card-danger {
+  border-left: 3px solid var(--danger, #ef4444);
+  background: rgba(239, 68, 68, 0.04);
+}
+
+.report-card-danger .report-card-value {
+  color: var(--danger, #ef4444);
+}
+
+.report-card-warning {
+  border-left: 3px solid var(--warning, #f59e0b);
+  background: rgba(245, 158, 11, 0.04);
+}
+
+.report-card-warning .report-card-value {
+  color: var(--warning, #f59e0b);
+}
+
 /* Report Charts */
 .report-charts-grid {
   display: grid;
@@ -5410,6 +5594,14 @@ canvas {
 
 .pulse-negative .pulse-value {
   color: #ef4444;
+}
+
+.pulse-warning {
+  border-left: 3px solid #f59e0b;
+}
+
+.pulse-warning .pulse-value {
+  color: #f59e0b;
 }
 
 .pulse-bills {

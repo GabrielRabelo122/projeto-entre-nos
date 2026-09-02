@@ -4,6 +4,7 @@ import {
   createBill,
   createBillInstance,
   createCategory,
+  createCategoryLimit,
   createEvent,
   createGoal,
   createInvite,
@@ -13,20 +14,24 @@ import {
   createTransaction,
   deleteBill,
   deleteCategory,
+  deleteCategoryLimit,
   deleteEvent,
   deleteGoal,
   deleteTransaction,
   expandRecurringBills,
+  fetchRecurringBillPayments,
   markAllNotificationsRead,
   markNotificationRead,
   toggleBillPaid,
+  toggleCategoryLimitActive,
   toggleEventDone,
   updateBill,
   updateCategory,
   updateEvent,
   updateGoal,
   updateProfile,
-  updateTransaction
+  updateTransaction,
+  upsertRecurringBillPayment
 } from "./api.js?v=20260806k";
 import { clearState, patchState, state } from "./store.js?v=20260806a";
 import {
@@ -59,6 +64,11 @@ import {
 } from "./ui.js?v=20260806s";
 
 const dom = getDOM();
+
+const fmtCurrency = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL"
+});
 
 if (isSupabaseConfigured()) {
   const configNote = document.querySelector("#configNote");
@@ -406,7 +416,16 @@ function refreshApp({ silent = false, sessionOverride, force = false } = {}) {
       }
 
       const data = await bootstrapApp(session);
-      data.bills = expandRecurringBills(data.bills || []);
+      
+      // Busca pagamentos persistidos de contas recorrentes
+      const recurringBillIds = (data.bills || [])
+        .filter(b => b.is_recurring && b.recurrence_day)
+        .map(b => b.id);
+      const recurringPayments = await fetchRecurringBillPayments(recurringBillIds);
+      
+      // Expande contas recorrentes com os pagamentos persistidos
+      data.bills = expandRecurringBills(data.bills || [], recurringPayments);
+      
       patchState({
         session,
         ...data
@@ -1004,6 +1023,76 @@ function bindAppForms() {
     }
   });
 
+  // ═══════════════════════════════════════════════════════════════
+  // ─── Category Limits (Limites de Gastos por Categoria) ───
+  // ═══════════════════════════════════════════════════════════════
+
+  // Toggle do campo "Dia de início" quando período personalizado é selecionado
+  const limitPeriodSelect = document.querySelector("#limitPeriodSelect");
+  const limitCustomDayLabel = document.querySelector("#limitCustomDayLabel");
+  if (limitPeriodSelect && limitCustomDayLabel) {
+    limitPeriodSelect.addEventListener("change", () => {
+      limitCustomDayLabel.classList.toggle("hidden", limitPeriodSelect.value !== "custom");
+    });
+  }
+
+  // Formulário de criação de limite
+  const categoryLimitForm = document.querySelector("#categoryLimitForm");
+  if (categoryLimitForm) {
+    categoryLimitForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      try {
+        setLoadingWithFallback(true);
+        await createCategoryLimit(formDataToObject(form));
+        await refreshApp({ silent: true });
+        showToast("Limite definido com sucesso.", "success");
+        resetForm(form);
+        if (limitCustomDayLabel) limitCustomDayLabel.classList.add("hidden");
+      } catch (error) {
+        showToast(error.message || "Erro ao definir limite.", "error");
+      } finally {
+        setLoadingWithFallback(false);
+      }
+    });
+  }
+
+  // Delegação de eventos para botões de limite (excluir, ativar/desativar)
+  document.addEventListener("click", async (event) => {
+    const deleteBtn = event.target.closest("[data-delete-limit]");
+    if (deleteBtn) {
+      const limitId = deleteBtn.dataset.deleteLimit;
+      if (!window.confirm("Tem certeza que deseja excluir este limite?")) return;
+      try {
+        setLoadingWithFallback(true);
+        await deleteCategoryLimit(limitId);
+        await refreshApp({ silent: true });
+        showToast("Limite excluído.", "success");
+      } catch (error) {
+        showToast(error.message, "error");
+      } finally {
+        setLoadingWithFallback(false);
+      }
+      return;
+    }
+
+    const toggleBtn = event.target.closest("[data-toggle-limit]");
+    if (toggleBtn) {
+      const limitId = toggleBtn.dataset.toggleLimit;
+      const newActive = toggleBtn.dataset.limitActive === "true";
+      try {
+        setLoadingWithFallback(true);
+        await toggleCategoryLimitActive(limitId, newActive);
+        await refreshApp({ silent: true });
+        showToast(newActive ? "Limite ativado." : "Limite desativado.", "success");
+      } catch (error) {
+        showToast(error.message, "error");
+      } finally {
+        setLoadingWithFallback(false);
+      }
+    }
+  });
+
   document.querySelector("#goalForm").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = event.currentTarget;
@@ -1067,6 +1156,34 @@ function bindAppForms() {
       const selectedCategory = (state.categories || []).find((category) => category.id === resolvedData.categoryId);
       if (selectedCategory?.kind === "reserve" && !resolvedData.goalId) {
         throw new Error("Ao usar categoria de reserva, escolha uma meta para receber o aporte automático.");
+      }
+
+      // Verificação de limite de categoria
+      if (resolvedData.type === "expense" && resolvedData.categoryId) {
+        const limit = (state.categoryLimits || []).find(l => l.category_id === resolvedData.categoryId && l.is_active);
+        if (limit) {
+          const currentSpending = Number(limit.current_spending || 0);
+          const limitAmount = Number(limit.limit_amount || 0);
+          const txAmount = Number(formData.amount || 0);
+          const newSpending = currentSpending + txAmount;
+          const pctAfter = (newSpending / limitAmount) * 100;
+
+          if (pctAfter >= 100) {
+            const confirmed = window.confirm(
+              `⚠️ ATENÇÃO: Esta transação fará o gasto da categoria "${selectedCategory?.name || "selecionada"}" ultrapassar o limite!\n\n` +
+              `Limite: ${fmtCurrency.format(limitAmount)}\n` +
+              `Gasto atual: ${fmtCurrency.format(currentSpending)}\n` +
+              `Gasto após esta transação: ${fmtCurrency.format(newSpending)}\n\n` +
+              `Deseja continuar mesmo assim?`
+            );
+            if (!confirmed) return;
+          } else if (pctAfter >= Number(limit.alert_threshold || 80)) {
+            showToast(
+              `Atenção: esta transação deixará o gasto de "${selectedCategory?.name || "selecionada"}" em ${pctAfter.toFixed(0)}% do limite.`,
+              "warning"
+            );
+          }
+        }
       }
       
       // Atualização otimista: cria localmente e renderiza imediatamente
@@ -1597,29 +1714,26 @@ function bindAppForms() {
         const newPaidState = !currentPaid;
 
         if (billId.startsWith("recur_")) {
-          // Instância recorrente: busca o template e cria uma instância real
-          const templateId = billId.split("_")[1];
+          // Instância recorrente: registra o pagamento na tabela de pagamentos persistidos
+          const parts = billId.split("_");
+          const templateId = parts[1];
+          const dueMonth = parts[2]; // formato: YYYY-MM
           const templateBill = (state.bills || []).find(b => b.id === templateId);
-          if (templateBill) {
-            const instanceBill = (state.bills || []).find(b => b.id === billId);
-            if (!currentPaid) {
-              try {
-                await createBillInstance({
-                  title: templateBill.title,
-                  amount: templateBill.amount,
-                  dueDate: instanceBill?.due_date || templateBill.due_date,
-                  ownerProfileId: templateBill.owner_profile_id,
-                  splitScope: templateBill.split_scope,
-                  isPaid: true
-                });
-              } catch (error) {
-                console.error("Erro ao criar instância recorrente:", error);
-                showToast("Erro ao marcar conta recorrente como paga.", "error");
-                return;
-              }
-            } else if (instanceBill?.is_recurring_instance) {
-              showToast("Esta é uma instância recorrente. Edite a conta original para desmarcar.", "info");
-              return;
+          const instanceBill = (state.bills || []).find(b => b.id === billId);
+          
+          if (templateBill && instanceBill) {
+            // Atualização otimista: muda o state local ANTES da chamada à API
+            instanceBill.is_paid = newPaidState;
+            instanceBill.paid_at = newPaidState ? new Date().toISOString() : null;
+            
+            // Re-renderiza imediatamente (sem buscar do servidor)
+            renderEverything(state, transactionFilters, dashboardFilters, reportConfig, billFilters, goalFilters);
+            
+            // Chama a API em background para persistir o pagamento
+            try {
+              await upsertRecurringBillPayment(templateId, dueMonth, newPaidState);
+            } catch (error) {
+              console.warn("Falha ao registrar pagamento recorrente no servidor:", error);
             }
           }
         } else {

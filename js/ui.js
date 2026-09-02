@@ -101,7 +101,12 @@ const dom = {
   calendarDayDetail: document.querySelector("#calendarDayDetail"),
   agendaListTitle: document.querySelector("#agendaListTitle"),
   navLinks: document.querySelectorAll("[data-tab-target]"),
-  tabs: document.querySelectorAll(".tab-panel")
+  tabs: document.querySelectorAll(".tab-panel"),
+  categoryLimitList: document.querySelector("#categoryLimitList"),
+  limitCategorySelect: document.querySelector("#limitCategorySelect"),
+  limitPeriodSelect: document.querySelector("#limitPeriodSelect"),
+  limitCustomDayLabel: document.querySelector("#limitCustomDayLabel"),
+  limitCustomStartDay: document.querySelector("#limitCustomStartDay")
 };
 
 function getPeople(state) {
@@ -1382,6 +1387,74 @@ export function renderCategories(state) {
   }).join("") : emptyStateMessage("Nenhuma categoria personalizada", "Adicione categorias para organizar suas transações.");
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ─── Category Limits (Limites de Gastos por Categoria) ───
+// ═══════════════════════════════════════════════════════════════
+
+const periodLabels = { weekly: "Semanal", monthly: "Mensal", yearly: "Anual", custom: "Personalizado" };
+
+export function renderCategoryLimits(state) {
+  if (!dom.categoryLimitList) return;
+  const limits = state.categoryLimits || [];
+
+  // Popula o select de categorias com categorias de despesa que ainda não têm limite
+  if (dom.limitCategorySelect) {
+    const categoriesWithLimit = new Set(limits.map(l => l.category_id));
+    const availableCategories = state.categories.filter(
+      c => (c.kind === "expense" || c.kind === "reserve") && !categoriesWithLimit.has(c.id)
+    );
+    dom.limitCategorySelect.innerHTML = availableCategories.length
+      ? `<option value="" disabled selected>Selecione uma categoria</option>` +
+        availableCategories.map(c => `<option value="${c.id}">${c.icon || "💸"} ${c.name}</option>`).join("")
+      : `<option value="" disabled selected>Todas as categorias já têm limites</option>`;
+  }
+
+  if (!limits.length) {
+    dom.categoryLimitList.innerHTML = emptyStateMessage("Nenhum limite definido", "Defina limites de gastos para suas categorias e acompanhe o uso em tempo real.");
+    return;
+  }
+
+  dom.categoryLimitList.innerHTML = limits.map(limit => {
+    const pct = Math.min(Number(limit.spending_percentage || 0), 100);
+    const statusClass = limit.status === "exceeded" ? "limit-exceeded" : limit.status === "warning" ? "limit-warning" : "limit-ok";
+    const statusLabel = limit.status === "exceeded" ? "Ultrapassado" : limit.status === "warning" ? "Atenção" : "Dentro do limite";
+    const periodLabel = limit.period_type === "custom" && limit.custom_start_day
+      ? `Personalizado (dia ${limit.custom_start_day})`
+      : (periodLabels[limit.period_type] || "Mensal");
+    const isActive = limit.is_active;
+
+    return `
+    <article class="list-card limit-card ${statusClass}">
+      <div class="limit-card-header">
+        <div class="limit-card-info">
+          <strong>${limit.category_icon || "💸"} ${limit.category_name}</strong>
+          <div class="limit-card-meta">
+            <span class="limit-period-badge">${periodLabel}</span>
+            <span class="limit-status-badge ${statusClass}">${statusLabel}</span>
+            ${!isActive ? '<span class="limit-inactive-badge">Desativado</span>' : ''}
+          </div>
+        </div>
+        <div class="limit-card-amount">
+          <span class="limit-spent">${fmtCurrency.format(Number(limit.current_spending || 0))}</span>
+          <span class="limit-separator">/</span>
+          <span class="limit-total">${fmtCurrency.format(Number(limit.limit_amount || 0))}</span>
+        </div>
+      </div>
+      <div class="limit-progress-track">
+        <div class="limit-progress-fill ${statusClass}" style="width:${pct}%"></div>
+      </div>
+      <div class="limit-card-footer">
+        <span class="muted">${pct.toFixed(1)}% utilizado${limit.status === 'exceeded' ? ' — excedeu em ' + fmtCurrency.format(Number(limit.current_spending || 0) - Number(limit.limit_amount || 0)) : ' — restante: ' + fmtCurrency.format(Number(limit.remaining_amount || 0))}</span>
+        <div class="limit-card-actions">
+          <button class="ghost-button action-button" data-toggle-limit="${limit.id}" data-limit-active="${!isActive}" type="button">${isActive ? 'Desativar' : 'Ativar'}</button>
+          <button class="danger-button action-button" data-delete-limit="${limit.id}" type="button">Excluir</button>
+        </div>
+      </div>
+    </article>
+  `;
+  }).join("");
+}
+
 export function renderNotifications(state) {
   if (!dom.notificationList) return;
   dom.notificationList.innerHTML = state.notifications.length ? state.notifications.map((item) => `
@@ -2058,12 +2131,22 @@ function generateByCategoryReport(state, transactions) {
   const byCategory = {};
   for (const t of expenses) {
     const name = t.category?.name || "Sem categoria";
-    byCategory[name] = (byCategory[name] || 0) + Number(t.amount || 0);
+    const catId = t.category?.id || null;
+    if (!byCategory[name]) byCategory[name] = { total: 0, categoryId: catId };
+    byCategory[name].total += Number(t.amount || 0);
   }
-  const sorted = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
-  const maxVal = sorted.length ? sorted[0][1] : 0;
+  const sorted = Object.entries(byCategory).sort((a, b) => b[1].total - a[1].total);
+  const maxVal = sorted.length ? sorted[0][1].total : 0;
 
-  let html = `<div class="report-summary-grid" style="grid-template-columns:repeat(2,1fr)">
+  // Busca limites definidos para as categorias
+  const limitsMap = {};
+  (state.categoryLimits || []).forEach(l => {
+    limitsMap[l.category_name] = l;
+  });
+  const exceededCount = (state.categoryLimits || []).filter(l => l.status === "exceeded").length;
+  const warningCount = (state.categoryLimits || []).filter(l => l.status === "warning").length;
+
+  let html = `<div class="report-summary-grid" style="grid-template-columns:repeat(${exceededCount || warningCount ? 4 : 2},1fr)">
     <div class="report-summary-card report-card-negative">
       <span class="report-card-label">Total de despesas</span>
       <span class="report-card-value">${fmtCurrency.format(total)}</span>
@@ -2071,17 +2154,41 @@ function generateByCategoryReport(state, transactions) {
     <div class="report-summary-card report-card-neutral">
       <span class="report-card-label">Categorias</span>
       <span class="report-card-value">${sorted.length}</span>
-    </div>
-  </div>
+    </div>`;
+
+  if (exceededCount || warningCount) {
+    if (exceededCount) {
+      html += `<div class="report-summary-card report-card-danger">
+        <span class="report-card-label">Limites ultrapassados</span>
+        <span class="report-card-value">${exceededCount}</span>
+      </div>`;
+    }
+    if (warningCount) {
+      html += `<div class="report-summary-card report-card-warning">
+        <span class="report-card-label">Perto do limite</span>
+        <span class="report-card-value">${warningCount}</span>
+      </div>`;
+    }
+  }
+
+  html += `</div>
   <div class="report-charts-grid">
     <div class="report-chart-box"><h4 class="report-chart-title">Distribuição por categoria</h4><div class="report-chart-canvas"><canvas id="reportChart1"></canvas></div></div>
     <div class="report-chart-box"><h4 class="report-chart-title">Proporção por categoria</h4><div class="report-bar-list">`;
 
-  sorted.forEach(([name, value]) => {
+  sorted.forEach(([name, data]) => {
+    const value = data.total;
     const pct = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
     const barPct = maxVal > 0 ? (value / maxVal) * 100 : 0;
+    const limit = limitsMap[name];
+    let limitInfo = "";
+    if (limit) {
+      const limitPct = Number(limit.spending_percentage || 0);
+      const statusClass = limit.status === "exceeded" ? "limit-exceeded" : limit.status === "warning" ? "limit-warning" : "limit-ok";
+      limitInfo = ` <span class="limit-report-badge ${statusClass}">${limitPct.toFixed(0)}% do limite</span>`;
+    }
     html += `<div class="report-bar-item">
-      <div class="report-bar-header"><span class="report-bar-label">${name}</span><span class="report-bar-value">${fmtCurrency.format(value)} <span class="report-bar-pct">(${pct}%)</span></span></div>
+      <div class="report-bar-header"><span class="report-bar-label">${name}${limitInfo}</span><span class="report-bar-value">${fmtCurrency.format(value)} <span class="report-bar-pct">(${pct}%)</span></span></div>
       <div class="report-bar-track"><div class="report-bar-fill expense" style="width:${barPct}%"></div></div>
     </div>`;
   });
@@ -2473,6 +2580,7 @@ export function renderEverything(state, filters, dashboardFilters = {}, reportCo
   renderGoals(state, goalFilters);
   renderBills(state, billFilters);
   renderCategories(state);
+  renderCategoryLimits(state);
   renderNotifications(state);
   renderLinkStatus(state);
   renderMembers(state);
@@ -2532,6 +2640,13 @@ export function renderDashboardPulse(state) {
     return da.localeCompare(db);
   })[0];
 
+  // 5. Limites de categoria
+  const limits = state.categoryLimits || [];
+  const exceededLimits = limits.filter(l => l.status === "exceeded");
+  const warningLimits = limits.filter(l => l.status === "warning");
+  const limitTone = exceededLimits.length > 0 ? "pulse-negative" : warningLimits.length > 0 ? "pulse-warning" : "pulse-positive";
+  const limitCount = exceededLimits.length + warningLimits.length;
+
   pulseEl.innerHTML = `
     <div class="pulse-card ${todayTone}">
       <span class="pulse-label">Saldo de hoje</span>
@@ -2547,6 +2662,11 @@ export function renderDashboardPulse(state) {
       <span class="pulse-label">Próximos compromissos</span>
       <strong class="pulse-value">${upcomingEvents.length}</strong>
       <span class="pulse-detail">${upcomingEvents.length ? `Próximo: ${fmtDate.format(new Date(upcomingEvents[0].due_date + "T12:00:00"))}` : "Nada pendente"}</span>
+    </div>
+    <div class="pulse-card ${limitTone}">
+      <span class="pulse-label">Limites de categorias</span>
+      <strong class="pulse-value">${limitCount}</strong>
+      <span class="pulse-detail">${exceededLimits.length > 0 ? `${exceededLimits.length} ultrapassado(s)` : warningLimits.length > 0 ? `${warningLimits.length} perto do limite` : limits.length > 0 ? "Tudo dentro do limite" : "Nenhum limite definido"}</span>
     </div>
     <div class="pulse-card pulse-last">
       <span class="pulse-label">Última movimentação</span>

@@ -212,6 +212,10 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
             Relatórios
           </button>
+          <button class="nav-link" data-tab-target="limitsTab">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"></path><circle cx="12" cy="12" r="10"></circle></svg>
+            Limites
+          </button>
           <button class="nav-link" data-tab-target="goalsTab">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
             Metas
@@ -779,6 +783,57 @@
           <div id="reportsContent" class="report-content"></div>
         </section>
 
+        <section id="limitsTab" class="tab-panel hidden">
+          <div class="content-grid">
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Limites de gastos</p>
+                  <h3>Definir limite por categoria</h3>
+                </div>
+              </div>
+              <form id="categoryLimitForm" class="form-grid">
+                <label>
+                  Categoria
+                  <select name="categoryId" id="limitCategorySelect" required></select>
+                </label>
+                <label>
+                  Valor limite
+                  <input type="text" name="limitAmount" inputmode="decimal" data-money placeholder="0,00" required />
+                </label>
+                <label>
+                  Período
+                  <select name="periodType" id="limitPeriodSelect">
+                    <option value="monthly">Mensal</option>
+                    <option value="weekly">Semanal</option>
+                    <option value="yearly">Anual</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                </label>
+                <label id="limitCustomDayLabel" class="hidden">
+                  Dia de início
+                  <input type="number" name="customStartDay" min="1" max="31" placeholder="Ex.: 1" id="limitCustomStartDay" />
+                </label>
+                <label>
+                  Alertar em (%)
+                  <input type="number" name="alertThreshold" min="1" max="100" value="80" placeholder="80" />
+                </label>
+                <button class="secondary-button full-width" type="submit">Definir limite</button>
+              </form>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Acompanhamento</p>
+                  <h3>Limites definidos</h3>
+                </div>
+              </div>
+              <div id="categoryLimitList" class="stack-list"></div>
+            </article>
+          </div>
+        </section>
+
         <section id="goalsTab" class="tab-panel hidden">
           <div class="content-grid">
             <article class="panel">
@@ -1147,6 +1202,10 @@
             <button class="mobile-more-menu-item" data-tab-target="reportsTab" type="button">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
               Relatórios
+            </button>
+            <button class="mobile-more-menu-item" data-tab-target="limitsTab" type="button">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M2 12h20"/><circle cx="12" cy="12" r="10"/></svg>
+              Limites
             </button>
             <button class="mobile-more-menu-item" data-tab-target="goalsTab" type="button">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>

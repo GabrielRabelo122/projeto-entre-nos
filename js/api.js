@@ -16,6 +16,7 @@ function emptyBootstrap() {
     workspaces: [],
     invites: [],
     categories: [],
+    categoryLimits: [],
     transactions: [],
     personalTransactions: [],
     goals: [],
@@ -80,7 +81,7 @@ export async function bootstrapApp(session) {
     }
   }
 
-  return { ...bootstrap, personalTransactions: bootstrap.personal_transactions || [], workspaces };
+  return { ...bootstrap, personalTransactions: bootstrap.personal_transactions || [], categoryLimits: bootstrap.category_limits || [], workspaces };
 }
 
 export async function upsertProfileFromAuth(user) {
@@ -248,6 +249,50 @@ export async function updateCategory(categoryId, formData) {
 
 export async function deleteCategory(categoryId) {
   const { error } = await supabase.from("categories").delete().eq("id", categoryId);
+  if (error) throw error;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// ─── Category Limits (Limites de Gastos por Categoria) ───
+// ═══════════════════════════════════════════════════════════════
+
+export async function fetchCategoryLimits() {
+  const { data, error } = await supabase.rpc("get_category_limits_with_status");
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createCategoryLimit(formData) {
+  const { error } = await supabase.from("category_limits").insert({
+    category_id: formData.categoryId,
+    limit_amount: Number(formData.limitAmount),
+    period_type: formData.periodType || "monthly",
+    custom_start_day: formData.periodType === "custom" ? Number(formData.customStartDay) || 1 : null,
+    alert_threshold: Number(formData.alertThreshold || 80),
+    is_active: formData.isActive !== "false" && formData.isActive !== false
+  });
+  if (error) throw error;
+}
+
+export async function updateCategoryLimit(limitId, formData) {
+  const payload = {
+    limit_amount: Number(formData.limitAmount),
+    period_type: formData.periodType || "monthly",
+    custom_start_day: formData.periodType === "custom" ? Number(formData.customStartDay) || 1 : null,
+    alert_threshold: Number(formData.alertThreshold || 80),
+    is_active: formData.isActive !== "false" && formData.isActive !== false
+  };
+  const { error } = await supabase.from("category_limits").update(payload).eq("id", limitId);
+  if (error) throw error;
+}
+
+export async function deleteCategoryLimit(limitId) {
+  const { error } = await supabase.from("category_limits").delete().eq("id", limitId);
+  if (error) throw error;
+}
+
+export async function toggleCategoryLimitActive(limitId, isActive) {
+  const { error } = await supabase.from("category_limits").update({ is_active: isActive }).eq("id", limitId);
   if (error) throw error;
 }
 
@@ -435,13 +480,40 @@ export async function syncDueBillNotifications(daysAhead = 3) {
 }
 
 /**
+ * Busca os pagamentos de instâncias recorrentes persistidos no banco.
+ */
+export async function fetchRecurringBillPayments(billIds) {
+  if (!billIds || billIds.length === 0) return [];
+  const { data, error } = await supabase.rpc("get_recurring_bill_payments", {
+    p_bill_ids: billIds
+  });
+  if (error) throw error;
+  return data || [];
+}
+
+/**
+ * Registra ou atualiza o pagamento de uma instância recorrente.
+ */
+export async function upsertRecurringBillPayment(billId, dueMonth, isPaid) {
+  const { error } = await supabase.rpc("upsert_recurring_bill_payment", {
+    p_bill_id: billId,
+    p_due_month: dueMonth,
+    p_is_paid: isPaid
+  });
+  if (error) throw error;
+}
+
+/**
  * Expande contas recorrentes em instâncias mensais virtuais.
  * Contas recorrentes (is_recurring=true) geram instâncias para o mês atual e próximo mês.
  * Contas normais são mantidas como estão.
  * Se já existe uma conta real para o mesmo mês/ano de uma instância recorrente,
  * a instância virtual não é gerada (evita duplicação).
+ * 
+ * @param {Array} bills - Lista de contas do banco
+ * @param {Array} recurringPayments - Lista de pagamentos persistidos (opcional)
  */
-export function expandRecurringBills(bills) {
+export function expandRecurringBills(bills, recurringPayments = []) {
   const today = new Date();
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth();
@@ -467,6 +539,13 @@ export function expandRecurringBills(bills) {
   // Monta um set de IDs já existentes no array de entrada (evita duplicatas de instâncias virtuais)
   const existingIds = new Set(bills.map(b => b.id));
 
+  // Cria um mapa de pagamentos persistidos para consulta rápida
+  const paymentsMap = new Map();
+  for (const payment of recurringPayments) {
+    const key = `${payment.bill_id}|${payment.due_month}`;
+    paymentsMap.set(key, payment);
+  }
+
   const result = [...nonRecurringBills];
 
   for (const bill of bills) {
@@ -485,13 +564,17 @@ export function expandRecurringBills(bills) {
       const day = Math.min(bill.recurrence_day, maxDay);
       const dueDate = `${monthKey}-${String(day).padStart(2, "0")}`;
 
+      // Verifica se existe pagamento persistido para esta instância
+      const paymentKey = `${bill.id}|${monthKey}`;
+      const payment = paymentsMap.get(paymentKey);
+
       result.push({
         ...bill,
         id: instanceId,
         _template_id: bill.id,
         due_date: dueDate,
-        is_paid: false,
-        paid_at: null,
+        is_paid: payment?.is_paid || false,
+        paid_at: payment?.paid_at || null,
         is_recurring_instance: true
       });
     }

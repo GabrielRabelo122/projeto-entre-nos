@@ -1044,7 +1044,26 @@ function bindAppForms() {
       const form = event.currentTarget;
       try {
         setLoadingWithFallback(true);
-        await createCategoryLimit(formDataToObject(form));
+        const formData = formDataToObject(form);
+        
+        // Processa o escopo: se for UUID de workspace, usa esse couple_id
+        // Se for "personal", usa o couple_id atual mas marca como personal
+        const scopeValue = formData.scope;
+        if (scopeValue && scopeValue !== "personal" && scopeValue !== state.couple?.id) {
+          // Selecionou um workspace diferente - precisa confirmar e ativar
+          if (!confirmWorkspaceSwitch(scopeValue)) {
+            throw new Error("Operação cancelada.");
+          }
+          await setActiveWorkspace(scopeValue);
+          formData.couple_id = scopeValue;
+          formData.scope = "workspace";
+        } else if (scopeValue === "personal") {
+          formData.scope = "personal";
+        } else {
+          formData.scope = "workspace";
+        }
+        
+        await createCategoryLimit(formData);
         await refreshApp({ silent: true });
         showToast("Limite definido com sucesso.", "success");
         resetForm(form);

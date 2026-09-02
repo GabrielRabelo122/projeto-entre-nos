@@ -1405,8 +1405,27 @@ export function renderCategoryLimits(state) {
     );
     dom.limitCategorySelect.innerHTML = availableCategories.length
       ? `<option value="" disabled selected>Selecione uma categoria</option>` +
-        availableCategories.map(c => `<option value="${c.id}">${c.icon || "💸"} ${c.name}</option>`).join("")
+        availableCategories.map(c => `<option value="${c.id}">${c.name}</option>`).join("")
       : `<option value="" disabled selected>Todas as categorias já têm limites</option>`;
+  }
+
+  // Popula o select de ambientes com os workspaces que o usuário está participando
+  if (dom.limitScopeSelect) {
+    const workspaces = Array.isArray(state.workspaces) ? state.workspaces : [];
+    const currentCoupleId = state.couple?.id || null;
+    
+    let optionsHtml = `<option value="personal" disabled${!currentCoupleId ? ' selected' : ''}>Pessoal (apenas você)</option>`;
+    
+    if (workspaces.length > 0) {
+      optionsHtml += workspaces.map(ws => 
+        `<option value="${ws.id}"${ws.id === currentCoupleId ? ' selected' : ''}>${ws.name} (Ambiente)</option>`
+      ).join("");
+    } else if (currentCoupleId) {
+      // Fallback se workspaces não estiver carregado mas temos couple
+      optionsHtml += `<option value="${currentCoupleId}" selected>Ambiente atual</option>`;
+    }
+    
+    dom.limitScopeSelect.innerHTML = optionsHtml;
   }
 
   if (!limits.length) {
@@ -1422,6 +1441,18 @@ export function renderCategoryLimits(state) {
       ? `Personalizado (dia ${limit.custom_start_day})`
       : (periodLabels[limit.period_type] || "Mensal");
     const isActive = limit.is_active;
+    
+    // Determina o label do escopo
+    let scopeLabel, scopeClass;
+    if (limit.scope === "personal") {
+      scopeLabel = "Pessoal";
+      scopeClass = "scope-personal";
+    } else {
+      // Busca o nome do workspace
+      const workspace = state.workspaces?.find(w => w.id === limit.couple_id);
+      scopeLabel = workspace ? `${workspace.name} (Ambiente)` : "Ambiente";
+      scopeClass = "scope-workspace";
+    }
 
     return `
     <article class="list-card limit-card ${statusClass}">
@@ -1430,6 +1461,7 @@ export function renderCategoryLimits(state) {
           <strong>${limit.category_icon || "💸"} ${limit.category_name}</strong>
           <div class="limit-card-meta">
             <span class="limit-period-badge">${periodLabel}</span>
+            <span class="limit-scope-badge ${scopeClass}">${scopeLabel}</span>
             <span class="limit-status-badge ${statusClass}">${statusLabel}</span>
             ${!isActive ? '<span class="limit-inactive-badge">Desativado</span>' : ''}
           </div>
@@ -1455,6 +1487,27 @@ export function renderCategoryLimits(state) {
   }).join("");
 }
 
+function getNotificationKindLabel(kind) {
+  const labels = {
+    transaction_created: "Nova transação",
+    transaction_updated: "Transação atualizada",
+    transaction_deleted: "Transação removida",
+    bill_created: "Nova conta",
+    bill_updated: "Conta atualizada",
+    bill_deleted: "Conta removida",
+    goal_created: "Nova meta",
+    goal_updated: "Meta atualizada",
+    goal_deleted: "Meta removida",
+    event_created: "Novo compromisso",
+    event_updated: "Compromisso atualizado",
+    event_deleted: "Compromisso removido",
+    high_expense: "Gasto alto",
+    category_limit_exceeded: "Limite excedido",
+    category_limit_warning: "Limite próximo",
+  };
+  return labels[kind] || kind;
+}
+
 export function renderNotifications(state) {
   if (!dom.notificationList) return;
   dom.notificationList.innerHTML = state.notifications.length ? state.notifications.map((item) => `
@@ -1464,7 +1517,7 @@ export function renderNotifications(state) {
         <span class="muted">${item.message}</span>
         <div class="meta-row">
           <span>${fmtDate.format(new Date(item.created_at))}</span>
-          <span>${item.kind}</span>
+          <span>${getNotificationKindLabel(item.kind)}</span>
           <span>${item.is_read ? "Lida" : "Nova"}</span>
         </div>
       </div>

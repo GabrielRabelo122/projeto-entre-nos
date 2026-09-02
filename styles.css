@@ -2993,6 +2993,23 @@ canvas {
   font-weight: 500;
 }
 
+.limit-scope-badge {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: 500;
+}
+
+.limit-scope-badge.scope-workspace {
+  background: rgba(59, 130, 246, 0.1);
+  color: var(--primary, #3b82f6);
+}
+
+.limit-scope-badge.scope-personal {
+  background: rgba(168, 85, 247, 0.1);
+  color: var(--purple, #a855f7);
+}
+
 .limit-card-amount {
   text-align: right;
   white-space: nowrap;

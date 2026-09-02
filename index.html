@@ -818,6 +818,12 @@
                   Alertar em (%)
                   <input type="number" name="alertThreshold" min="1" max="100" value="80" placeholder="80" />
                 </label>
+                <label>
+                  Vincular ao ambiente
+                  <select name="scope" id="limitScopeSelect">
+                    <option value="personal" disabled>Pessoal (apenas você)</option>
+                  </select>
+                </label>
                 <button class="secondary-button full-width" type="submit">Definir limite</button>
               </form>
             </article>

@@ -263,14 +263,22 @@ export async function fetchCategoryLimits() {
 }
 
 export async function createCategoryLimit(formData) {
-  const { error } = await supabase.from("category_limits").insert({
+  const payload = {
     category_id: formData.categoryId,
     limit_amount: Number(formData.limitAmount),
     period_type: formData.periodType || "monthly",
     custom_start_day: formData.periodType === "custom" ? Number(formData.customStartDay) || 1 : null,
     alert_threshold: Number(formData.alertThreshold || 80),
+    scope: formData.scope || "workspace",
     is_active: formData.isActive !== "false" && formData.isActive !== false
-  });
+  };
+  
+  // Se foi especificado um couple_id diferente (workspace selecionado), usa ele
+  if (formData.couple_id) {
+    payload.couple_id = formData.couple_id;
+  }
+  
+  const { error } = await supabase.from("category_limits").insert(payload);
   if (error) throw error;
 }
 
@@ -280,6 +288,7 @@ export async function updateCategoryLimit(limitId, formData) {
     period_type: formData.periodType || "monthly",
     custom_start_day: formData.periodType === "custom" ? Number(formData.customStartDay) || 1 : null,
     alert_threshold: Number(formData.alertThreshold || 80),
+    scope: formData.scope || "workspace",
     is_active: formData.isActive !== "false" && formData.isActive !== false
   };
   const { error } = await supabase.from("category_limits").update(payload).eq("id", limitId);

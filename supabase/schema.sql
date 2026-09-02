@@ -360,6 +360,7 @@ create table if not exists public.category_limits (
   period_type text not null default 'monthly' check (period_type in ('weekly', 'monthly', 'yearly', 'custom')),
   custom_start_day integer check (custom_start_day >= 1 and custom_start_day <= 31),
   alert_threshold numeric(5,2) not null default 80 check (alert_threshold >= 1 and alert_threshold <= 100),
+  scope text not null default 'workspace' check (scope in ('personal', 'workspace')),
   is_active boolean not null default true,
   created_by uuid not null default auth.uid() references auth.users(id) on delete cascade,
   created_at timestamptz not null default timezone('utc', now()),
@@ -908,6 +909,7 @@ returns table (
   period_type text,
   custom_start_day integer,
   alert_threshold numeric,
+  scope text,
   is_active boolean,
   created_at timestamptz,
   updated_at timestamptz,
@@ -929,7 +931,7 @@ begin
   return query
   select
     cl.id, cl.couple_id, cl.category_id, cl.limit_amount, cl.period_type,
-    cl.custom_start_day, cl.alert_threshold, cl.is_active, cl.created_at, cl.updated_at,
+    cl.custom_start_day, cl.alert_threshold, cl.scope, cl.is_active, cl.created_at, cl.updated_at,
     c.name as category_name, c.icon as category_icon,
     public.get_category_spending(cl.category_id, cl.period_type, cl.custom_start_day) as current_spending,
     case
@@ -1323,6 +1325,7 @@ begin
           'period_type', cl.period_type,
           'custom_start_day', cl.custom_start_day,
           'alert_threshold', cl.alert_threshold,
+          'scope', cl.scope,
           'is_active', cl.is_active,
           'created_at', cl.created_at,
           'updated_at', cl.updated_at,

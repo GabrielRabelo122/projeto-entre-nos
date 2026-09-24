@@ -1,0 +1,42 @@
+name: Keep-warm
+
+# Mantém o projeto Supabase ativo — o plano free pausa o banco após 7 dias
+# sem atividade. Nenhum dado é gravado: é só um GET na API REST.
+
+on:
+  schedule:
+    # 2 pings por dia em horários alternados (UTC)
+    - cron: '15 10 * * *'
+    - cron: '45 21 * * *'
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+concurrency:
+  group: keep-warm
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping Supabase (mantém o banco acordado)
+        env:
+          SUPABASE_URL: https://nxjwiqtobquflpnmbabj.supabase.co
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::Secret SUPABASE_ANON_KEY não configurada no repositório."
+            echo "Configure em Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            --max-time 20 \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            "$SUPABASE_URL/rest/v1/health")
+          echo "Supabase respondeu: $code"
+          if [ "$code" = "401" ] || [ "$code" = "403" ]; then
+            echo "::error::apikey recusada ($code) — confira a SUPABASE_ANON_KEY."
+            exit 1
+          fi
